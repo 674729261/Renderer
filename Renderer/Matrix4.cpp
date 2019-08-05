@@ -168,6 +168,20 @@ Matrix4 Matrix4::Rotate(Vector3& vec, double angle)
 	return Matrix4(result);
 }
 
+Matrix4 Matrix4::Translate(double vec[3])
+{
+	double u = vec[0];
+	double v = vec[1];
+	double w = vec[2];
+	double result[4][4] = {
+			{1, 0, 0, u},
+			{0, 1, 0, v},
+			{0, 0, 1, w},
+			{0, 0, 0, 1}
+	};
+	return Matrix4(result);
+}
+
 Matrix4::~Matrix4()
 {
 }

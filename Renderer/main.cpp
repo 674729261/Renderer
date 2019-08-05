@@ -71,7 +71,7 @@ bool loadOBJ(const char* filename, Graphics* gps)
 
 				for (int i = 0; i < 3; i++)
 				{
-					if (sscanf(ss[i], "%d/%d/%d", index, index + 1, index + 2) != 3)
+					if (sscanf(ss[i], "%d/%d/%d", index, index + 1, index + 2) != 3)//obj文件face有三个元素
 					{
 						fin.close();
 						return false;
@@ -89,10 +89,14 @@ bool loadOBJ(const char* filename, Graphics* gps)
 			}
 		}
 		fin.close();
+		gps->setVBO(&vbo[0], vboCount);
+		gps->setABO(&abo[0], 5, vboCount);//每个顶点有五个属性，分别是Tx,Ty,Nx,Ny,Nz;T表示纹理，N表示法向量
+		return true;
 	}
-	gps->setVBO(&vbo[0], vboCount);
-	gps->setABO(&abo[0], 5, vboCount);//每个顶点有五个属性，分别是Tx,Ty,Nx,Ny,Nz;T表示纹理，N表示法向量
-	return true;
+	else
+	{
+		return false;
+	}
 }
 
 
@@ -143,10 +147,10 @@ int main()
 	//gp->setVaryingCount(1);//需要从顶点着色器传递1个参数到片元着色器
 
 	Vector3 eyePosition(0, 0, 9.5); //相机原点
-	if (!loadOBJ("mod/cube.obj", gp))//从文件加载模型
+	if (!loadOBJ("mod/teapot.obj", gp))//从文件加载模型
 	{
 		sprintf(msg, "加载obj文件失败\n");
-		OutputDebugString(gp->errmsg);//往调试器输出错误信息
+		OutputDebugString(msg);//往调试器输出错误信息
 		delete gp;
 		return -1;
 	}
@@ -191,24 +195,81 @@ int main()
 
 	Vector3 axisA(0, 1, 0);//旋转轴A
 	Vector3 axisB(1, 0, 0);//旋转轴B
+	double angleA = 0;
+	double angleB = 0;//绕AB轴旋转的角度
+	double translateVec[3] = { 0,0,0 };//平移值
 
 	double totalTime = 0;
 	int totalFrame = 1;
-	for (;; totalFrame++)
+	MOUSEMSG m;		// 定义鼠标消息
+	int MX_s = 0;
+	int MY_s = 0;//鼠标左键按下时的坐标
+	int MX_e = 0;
+	int MY_e = 0;//鼠标移动时坐标
+	bool isClick = false;//鼠标左键是否按下
+	for (;; )
 	{
+		m = GetMouseMsg();//这个函数是阻塞的,可以在不绘制时用于减少CPU使用率
+		for (;;)//把缓冲区中的所有鼠标消息取出来
+		{
+			switch (m.uMsg)
+			{
+			case WM_MOUSEWHEEL://鼠标滚动
+				if (m.wheel > 0)
+				{
+					translateVec[2] += 0.1;
+				}
+				else
+				{
+					translateVec[2] -= 0.1;
+				}
+				break;
+			case WM_MOUSEMOVE:
+				if (isClick)
+				{
+					MX_e = m.x;
+					MY_e = m.y;
+					angleA += (double)(MX_e - MX_s) / width * 180;//采用累加方式记录鼠标总偏移量
+					angleB += (double)(MY_e - MY_s) / height * 180;
+					MX_s = MX_e;
+					MY_s = MY_e;
+				}
+				break;
+			case WM_LBUTTONDOWN:
+				isClick = true;
+				MX_s = m.x;
+				MY_s = m.y;
+				break;
+			case WM_LBUTTONUP:
+				isClick = false;
+				break;
+			}
+			if (!MouseHit())
+			{
+				break;
+			}
+			m = GetMouseMsg();// 获取一条鼠标消息
+		}
+		if (!isClick)
+		{
+			continue;
+		}
 		std::chrono::system_clock::time_point start = std::chrono::system_clock::now();
 
-		Matrix4 mMatrixRotateA = Matrix4::Rotate(axisA, totalFrame);//计算旋转矩阵A
-		Matrix4 mMatrixRotateB = Matrix4::Rotate(axisB, totalFrame);//计算旋转矩阵B
+		Matrix4 mMatrixRotateA = Matrix4::Rotate(axisA, angleA);//计算旋转矩阵A
+		Matrix4 mMatrixRotateB = Matrix4::Rotate(axisB, angleB);//计算旋转矩阵B
+		Matrix4 mMatrixTranslate = Matrix4::Translate(translateVec);
+		Matrix4 mMatrixTmp;
 		Matrix4 mMatrix;//model matrix
-		Matrix::Mult(mMatrixRotateB.Value[0], mMatrixRotateA.Value[0], 4, 4, 4, mMatrix.Value[0]);//计算M矩阵
+		Matrix::Mult(mMatrixRotateB.Value[0], mMatrixRotateA.Value[0], 4, 4, 4, mMatrixTmp.Value[0]);//计算旋转结果
+		Matrix::Mult(mMatrixTmp.Value[0], mMatrixTranslate.Value[0], 4, 4, 4, mMatrix.Value[0]);//得到平移结果
 
 		invModMatrix = Matrix4::QuickInverse(mMatrix);//求出模型矩阵的逆矩阵
 		Vector4 lightvec(0.5, 0.5, 0.5, 0);//光线向量，向量的w分量为0
 		Matrix::Mult(invModMatrix.Value[0], lightvec.value, 4, 1, 4, invLight.value);//计算光线的逆向量(即模型不动，光线动)
 		invLight.Normalize();
 		Matrix::Mult(vpMatrix.Value[0], mMatrix.Value[0], 4, 4, 4, mvpMatrix.Value[0]);//计算MVP矩阵
-		gp->clearDepth(0.0);//清除深度缓冲区，将深度缓冲区值设置为一个非常小的值
+		gp->clearDepth(1);//清除深度缓冲区
 		gp->clear();//清除屏幕
 		gp->Draw();//绘制
 		gp->flush();//等待同步
@@ -216,12 +277,13 @@ int main()
 		std::chrono::system_clock::time_point end = std::chrono::system_clock::now();
 		std::chrono::microseconds duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
 		double useTime = double(duration.count()) * std::chrono::microseconds::period::num / std::chrono::microseconds::period::den;//花费时间
-		if (16 - useTime*1000 > 0)//如果绘制小于16毫秒，则休眠一段时间补齐16毫秒
+		if (16 - useTime * 1000 > 0)//如果绘制小于16毫秒，则休眠一段时间补齐16毫秒
 		{
-			Sleep(16 - (int)(useTime*1000));
+			Sleep(16 - (int)(useTime * 1000));
 		}
 		totalTime += useTime;
-		sprintf(msg, "第%d帧:本帧绘制耗时:%lf 毫秒,平均耗时:%lf毫秒\n", totalFrame, useTime*1000,(double)totalTime/(double)totalFrame*1000);
+		totalFrame++;//帧计数器加一
+		sprintf(msg, "第%d帧:本帧绘制耗时:%lf 毫秒,平均耗时:%lf毫秒\n", totalFrame, useTime * 1000, (double)totalTime / (double)totalFrame * 1000);
 		OutputDebugString(msg);//往调试器输出两帧绘制时间间隔
 	}
 	delete gp;
