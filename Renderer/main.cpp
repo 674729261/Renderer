@@ -147,14 +147,14 @@ int main()
 	//gp->setVaryingCount(1);//需要从顶点着色器传递1个参数到片元着色器
 
 	Vector3 eyePosition(0, 0, 9.5); //相机原点
-	if (!loadOBJ("mod/teapot.obj", gp))//从文件加载模型
+	if (!loadOBJ("mod/cube.obj", gp))//从文件加载模型
 	{
 		sprintf(msg, "加载obj文件失败\n");
 		OutputDebugString(msg);//往调试器输出错误信息
 		delete gp;
 		return -1;
 	}
-	if (!gp->loadBMP("mod/lena.bmp"))//加载BMP文件做纹理
+	if (!gp->loadBMP("mod/teapot.bmp"))//加载BMP文件做纹理
 	{
 		OutputDebugString(gp->errmsg);//往调试器输出错误信息
 		delete gp;
@@ -207,6 +207,7 @@ int main()
 	int MX_e = 0;
 	int MY_e = 0;//鼠标移动时坐标
 	bool isClick = false;//鼠标左键是否按下
+	bool isDraw = true;//默认绘制第一帧
 	for (;; )
 	{
 		m = GetMouseMsg();//这个函数是阻塞的,可以在不绘制时用于减少CPU使用率
@@ -214,7 +215,7 @@ int main()
 		{
 			switch (m.uMsg)
 			{
-			case WM_MOUSEWHEEL://鼠标滚动
+			case WM_MOUSEWHEEL://鼠标滚动移动物体
 				if (m.wheel > 0)
 				{
 					translateVec[2] += 0.1;
@@ -223,6 +224,7 @@ int main()
 				{
 					translateVec[2] -= 0.1;
 				}
+				isDraw = true;//需要绘制
 				break;
 			case WM_MOUSEMOVE:
 				if (isClick)
@@ -233,6 +235,7 @@ int main()
 					angleB += (double)(MY_e - MY_s) / height * 180;
 					MX_s = MX_e;
 					MY_s = MY_e;
+					isDraw = true;//需要绘制
 				}
 				break;
 			case WM_LBUTTONDOWN:
@@ -250,9 +253,9 @@ int main()
 			}
 			m = GetMouseMsg();// 获取一条鼠标消息
 		}
-		if (!isClick)
+		if (!isDraw)
 		{
-			continue;
+			continue;//跳过下面的绘制代码
 		}
 		std::chrono::system_clock::time_point start = std::chrono::system_clock::now();
 
@@ -262,7 +265,7 @@ int main()
 		Matrix4 mMatrixTmp;
 		Matrix4 mMatrix;//model matrix
 		Matrix::Mult(mMatrixRotateB.Value[0], mMatrixRotateA.Value[0], 4, 4, 4, mMatrixTmp.Value[0]);//计算旋转结果
-		Matrix::Mult(mMatrixTmp.Value[0], mMatrixTranslate.Value[0], 4, 4, 4, mMatrix.Value[0]);//得到平移结果
+		Matrix::Mult(mMatrixTranslate.Value[0], mMatrixTmp.Value[0], 4, 4, 4, mMatrix.Value[0]);//得到平移结果,矩阵相乘有结合律 position*A*B*C*D = position*(A*B*C*D)，在这里面，D动作最先执行
 
 		invModMatrix = Matrix4::QuickInverse(mMatrix);//求出模型矩阵的逆矩阵
 		Vector4 lightvec(0.5, 0.5, 0.5, 0);//光线向量，向量的w分量为0
@@ -285,6 +288,7 @@ int main()
 		totalFrame++;//帧计数器加一
 		sprintf(msg, "第%d帧:本帧绘制耗时:%lf 毫秒,平均耗时:%lf毫秒\n", totalFrame, useTime * 1000, (double)totalTime / (double)totalFrame * 1000);
 		OutputDebugString(msg);//往调试器输出两帧绘制时间间隔
+		isDraw = false;//本轮绘制结束
 	}
 	delete gp;
 	return 0;
