@@ -436,7 +436,7 @@ void Graphics::DrawTriangle(Point4* pArray)
 						double depth = Weight[0] * pArray[0].value[2] + Weight[1] * pArray[1].value[2] + Weight[2] * pArray[2].value[2];//计算深度值，这个值虽然不是线性的，但是经过线性插值仍然能保证大的更大，小的更小
 						if (depth < -1.0 || depth>1.0)//如果深度超出[-1,1]区间则放弃当前像素
 						{
-							continue;
+							continue;//放弃本像素
 						}
 						if (DepthBuffer[scanLine * ScreenWidth + x] > depth)//深度测试,测试通过的像素才计算插值 
 						{
@@ -445,6 +445,10 @@ void Graphics::DrawTriangle(Point4* pArray)
 							 深度值Depth:D(j,i)=1/z=Weight[0]*(1/z1)+Weight[1]*(1/z2)+Weight[2]*(1/z3)
 							 根据透视校正的原理(j,i)的值:v/z=Weight[0]*(v1/z1)+Weight[1]*(v2/z2)+Weight[2]*(v3/z3)
 							*/
+							if ((Weight[0] * (1 / pArray[0].value[3]) + Weight[1] * (1 / pArray[1].value[3]) + Weight[2] * (1 / pArray[2].value[3])) == 0)
+							{
+								continue;//相机远点和屏幕当前点的连线和三角形平行，无法计算深度(实际上这个像素也是不在三角形内部的，但是因为像素取值都是整数，所以这里就需要判断一下了)
+							}
 							double originDepth = 1 / (Weight[0] * (1 / pArray[0].value[3]) + Weight[1] * (1 / pArray[1].value[3]) + Weight[2] * (1 / pArray[2].value[3]));//这个值是原始深度
 							for (int index = 0; index < NumOfVertexABO; index++)//对每个abo插值
 							{
