@@ -375,19 +375,34 @@ void Graphics::DrawTriangle(Point4* pArray, double Square)
 				if (pArray[(i + Count - 1) % Count].value[1] > 0)//这条线可能需要绘制
 				{
 					double dx1 = (pArray[(i + Count) % Count].value[0] - pArray[(i + Count - 1) % Count].value[0]) / (pArray[(i + Count) % Count].value[1] - pArray[(i + Count - 1) % Count].value[1]);
-					double dx2 = (pArray[(i + Count) % Count].value[0] - pArray[(i + Count + 1) % Count].value[0]) / (pArray[(i + Count) % Count].value[1] - pArray[(i + Count + 1) % Count].value[1]);
 					if (pArray[(i + Count) % Count].value[1] < 0)//从0扫描线开始记录，忽略掉小于0的那些扫描线
 					{
 						NET[0].push_back(EdgeTableItem(pArray[(i + Count) % Count].value[0] + dx1 * (0 - pArray[(i + Count) % Count].value[1]), dx1, pArray[(i + Count - 1) % Count].value[1]));//记录i-1
-						NET[0].push_back(EdgeTableItem(pArray[(i + Count) % Count].value[0] + dx2 * (0 - pArray[(i + Count) % Count].value[1]), dx2, pArray[(i + Count + 1) % Count].value[1]));//记录i+1
-						NET[0].sort(SortEdgeTableItem);//本扫描线有两个边表，需要排序
 					}
 					else
 					{
 						NET[(int)pArray[(i + Count) % Count].value[1]].push_back(EdgeTableItem(pArray[(i + Count) % Count].value[0], dx1, pArray[(i + Count - 1) % Count].value[1]));//记录i-1
-						NET[(int)pArray[(i + Count) % Count].value[1]].push_back(EdgeTableItem(pArray[(i + Count) % Count].value[0], dx2, pArray[(i + Count + 1) % Count].value[1]));//记录i+1
-						NET[(int)pArray[(i + Count) % Count].value[1]].sort(SortEdgeTableItem);//本扫描线有两个边表，需要排序
 					}
+				}
+				if (pArray[(i + Count + 1) % Count].value[1] > 0)//这条线可能需要绘制
+				{
+					double dx2 = (pArray[(i + Count) % Count].value[0] - pArray[(i + Count + 1) % Count].value[0]) / (pArray[(i + Count) % Count].value[1] - pArray[(i + Count + 1) % Count].value[1]);
+					if (pArray[(i + Count) % Count].value[1] < 0)//从0扫描线开始记录，忽略掉小于0的那些扫描线
+					{
+						NET[0].push_back(EdgeTableItem(pArray[(i + Count) % Count].value[0] + dx2 * (0 - pArray[(i + Count) % Count].value[1]), dx2, pArray[(i + Count + 1) % Count].value[1]));//记录i+1
+					}
+					else
+					{
+						NET[(int)pArray[(i + Count) % Count].value[1]].push_back(EdgeTableItem(pArray[(i + Count) % Count].value[0], dx2, pArray[(i + Count + 1) % Count].value[1]));//记录i+1
+					}
+				}
+				if (pArray[(i + Count) % Count].value[1] < 0)//从0扫描线开始记录，忽略掉小于0的那些扫描线
+				{
+					NET[0].sort(SortEdgeTableItem);//本扫描线有两个边表，需要排序
+				}
+				else
+				{
+					NET[(int)pArray[(i + Count) % Count].value[1]].sort(SortEdgeTableItem);//本扫描线有两个边表，需要排序
 				}
 			}
 		}
