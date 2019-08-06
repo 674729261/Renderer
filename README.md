@@ -13,7 +13,7 @@
 main.cpp是用户自己写的代码，其他代码类似opengl运行库
 
 --- 
-软件运行可以得到如下的效果：
+软件运行可以得到如下的效果:  
 鼠标拖动
 ![运行效果](./Renderer/mod/mouseMove.gif)  
 teapot.obj
