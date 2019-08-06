@@ -47,7 +47,7 @@ public:
 	Graphics(unsigned int w, unsigned int h);
 	void setVBO(double* buffer, int count);
 	void setABO(double* buffer, int numOfvertex, int count);
-	void Interpolation(Point4 parry[3], double x, double y, double Weight[3]);//使用屏幕坐标插值计算三角形各个顶点的权重并保存在Weight中
+	void Interpolation(Point4 parry[3], double x, double y, double Weight[3], double Square);//使用屏幕坐标插值计算三角形各个顶点的权重并保存在Weight中
 	~Graphics();
 	void fast_putpixel(int x, int y, COLORREF c);
 	COLORREF fast_getpixel(int x, int y);
@@ -68,7 +68,7 @@ private:
 	unsigned char* textureBuffer = NULL;//纹理缓冲区，保存bmp位图
 	double* TransmitAbo;//从顶点着色器传递到片元着色器的ABO
 	int TextureHeight, TextureWidth;//纹理宽高
-	void DrawTriangle(Point4* pointArray);//使用扫描线填充算法绘制三角形
+	void DrawTriangle(Point4* pointArray, double Square);//使用扫描线填充算法绘制三角形
 	DWORD* g_pBuf;//显存指针
 	double* DepthBuffer = NULL;//深度缓冲区
 	double* vboBuffer = NULL;//vob

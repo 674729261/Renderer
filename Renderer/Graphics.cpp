@@ -158,8 +158,8 @@ bool Graphics::Draw()
 		Vector3 b(parray[0].value[0] - parray[2].value[0], parray[0].value[1] - parray[2].value[1], 0);
 		
 		//使用有向面积判断顺逆时针和面积是否为0
-		double t = a.value[0]*b.value[1]-a.value[1]*b.value[0];
-		if (t == 0)
+		double square = a.value[0]*b.value[1]-a.value[1]*b.value[0];
+		if (square == 0)
 		{
 			continue;
 		}
@@ -167,20 +167,20 @@ bool Graphics::Draw()
 		{
 			if (!CW_CCW)//使用顺时针绘制
 			{
-				if (t > 0)//实际确实逆时针
+				if (square > 0)//实际确实逆时针
 				{
 					continue;
 				}
 			}
 			else//同上
 			{
-				if (t < 0)
+				if (square < 0)
 				{
 					continue;
 				}
 			}
 		}
-		DrawTriangle(parray);
+		DrawTriangle(parray, square);
 	}
 	return true;
 }
@@ -246,7 +246,7 @@ bool SortEdgeTableItem(EdgeTableItem const& E1, EdgeTableItem const& E2)//将边
 	}
 }
 //本函数中插值计算都是采用double
-void Graphics::DrawTriangle(Point4* pArray)
+void Graphics::DrawTriangle(Point4* pArray, double Square)
 {
 	unsigned int Count = 3;//顶点数量
 	int Min = (int)pArray[0].value[1];
@@ -432,7 +432,7 @@ void Graphics::DrawTriangle(Point4* pArray)
 					{
 						double Weight[3] = { 0,0,0 };
 						double Weight1[3] = { 0,0,0 };
-						Interpolation(pArray, x, scanLine, Weight);//使用重心坐标插值计算出三个顶点对(j,i)的权重
+						Interpolation(pArray, x, scanLine, Weight,Square);//使用重心坐标插值计算出三个顶点对(j,i)的权重
 						double depth = Weight[0] * pArray[0].value[2] + Weight[1] * pArray[1].value[2] + Weight[2] * pArray[2].value[2];//计算深度值，这个值虽然不是线性的，但是经过线性插值仍然能保证大的更大，小的更小
 						if (depth < -1.0 || depth>1.0)//如果深度超出[-1,1]区间则放弃当前像素
 						{
@@ -519,7 +519,7 @@ W1=S1/S,W2=S2/S,W3=S3/S
 //使用sse加速,一次插值4个点
 #define _INTERPOLATRIONBYSQUARE //使用面积插值，没定义本宏的话使用直线求交点的方式插值，对比一下速度，用面积插值可用SSE优化
 #ifdef _INTERPOLATRIONBYSQUARE
-void Graphics::Interpolation(Point4 ps[3], double x, double y, double Weight[3])
+void Graphics::Interpolation(Point4 ps[3], double x, double y, double Weight[3],double Square)
 {
 	//使用有向面积计算重心坐标插值
 	/*
@@ -531,13 +531,12 @@ void Graphics::Interpolation(Point4 ps[3], double x, double y, double Weight[3])
 	Vector3 a1(x - ps[1].value[0], y - ps[1].value[1], 0.0);//p1 (x,y)
 	Vector3 b1(x - ps[2].value[0], y - ps[2].value[1], 0.0);//p2 (x,y)
 	Vector3 c1(x - ps[0].value[0], y - ps[0].value[1], 0.0);//p0 (x,y)
-	double s = a.value[0] * b.value[1] - a.value[1] * b.value[0];//得到三个点围城的三角形面积*2
 	double s2 = a.value[0] * a1.value[1] - a.value[1] * a1.value[0];//顶点p2对面面积*2
 	double s0 = b.value[0] * b1.value[1] - b.value[1] * b1.value[0];//顶点p0对面面积*2
 	double s1 = c.value[0] * c1.value[1] - c.value[1] * c1.value[0];//顶点p1对面面积*2
-	Weight[0] = s0 / s;
-	Weight[1] = s1 / s;
-	Weight[2] = s2 / s;
+	Weight[0] = s0 / Square;
+	Weight[1] = s1 / Square;
+	Weight[2] = s2 / Square;
 }
 #else
 void Graphics::Interpolation(Point4 pArray[3], double x, double y, double Weight[3])
