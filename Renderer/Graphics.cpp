@@ -192,7 +192,7 @@ void Graphics::clear()
 
 void Graphics::clearDepth(double v)
 {
-	std::fill(DepthBuffer, DepthBuffer + (viewPortWidth * viewPortHeight), v);//有SSE优化
+	std::fill(DepthBuffer, DepthBuffer + (viewPortWidth * viewPortHeight), v);
 	//memset(DepthBuffer, 0x7f, sizeof(double)*Width*Height);//用0x7f作为memset能搞定的极大值，memset应该有优化，比如调用cpu的特殊指令可以在较短的周期内赋值
 }
 
