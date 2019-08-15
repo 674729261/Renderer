@@ -27,26 +27,21 @@ class Graphics
 public:
 	bool setViewPort(int x,int y,int w,int h);//设置视口坐标和宽高，即在屏幕内部的一个子区域绘制
 	char errmsg[1024] = { '0' };//错误信息，如果执行出错则可以读取本信息
-	void (*VertexShader)(double const vbo[3], double* abo, double* varying, Point4& Position);//顶点着色器，概念和OpenGL类似，但是参数有区别，下面是ABO的说明
+	void (*VertexShader)(const double* vbo, double* varying, Point4& Position);//顶点着色器，概念和OpenGL类似，但是参数有区别，下面是ABO的说明
 	/*
 	Position对应了OpenGL的gl_Position，
-	VBO来当前顶点的xyz，来自vbo，
-	abo来当前顶点的abo，来自abo
+	VBO来当前顶点的属性，
 	varying表示需要通过顶点着色器传递给片元着色器的变量，会在顶点处插值被传递给片元着色器
-	本程序需要计算并设置当abo和Position
 	*/
-	void (*FragmentShader)(double* ABO, double* varying, COLORREF& FragColor);//片源，概念和OpenGL类似，但是参数有区别，下面是ABO的说明
+	void (*FragmentShader)(double* varying, COLORREF& FragColor);//片源，概念和OpenGL类似，但是参数有区别，下面是ABO的说明
 	/*
 	FragColor对应于OpenGL的gl_FragColor，只是没有了透明度，只有RGB
-	ABO在经过1/w插值之后会传递给片元着色器
 	顶点着色器中的Varying经过1/w插值之后传递给片元着色器
-	本程序需要计算并设置当abo和Position
 	*/
 	bool enable_CW = true;//是否启用顺时针逆时针三角形剔除
 	bool CW_CCW = false;//默认逆时针,true为顺时针
 	Graphics(unsigned int w, unsigned int h);
-	void setVBO(double* buffer, int count);
-	void setABO(double* buffer, int numOfvertex, int count);
+	void setVBO(double* buffer, int numOfvertex, int count);
 	void Interpolation(Point4 parry[3], double x, double y, double Weight[3], double Square);//使用屏幕坐标插值计算三角形各个顶点的权重并保存在Weight中
 	~Graphics();
 	void fast_putpixel(int x, int y, COLORREF c);
@@ -66,20 +61,16 @@ private:
 	int bmpwidth = 0;//位图宽高
 	unsigned char* bmpData = NULL;//位图数据区
 	unsigned char* textureBuffer = NULL;//纹理缓冲区，保存bmp位图
-	double* TransmitAbo;//从顶点着色器传递到片元着色器的ABO
 	int TextureHeight, TextureWidth;//纹理宽高
 	void DrawTriangle(Point4* pointArray, double Square);//使用扫描线填充算法绘制三角形
 	DWORD* g_pBuf;//显存指针
 	double* DepthBuffer = NULL;//深度缓冲区
 	double* vboBuffer = NULL;//vob
 	int vboCount = 0;//顶点数量
-	double* aboBuffer = NULL;//abo
-	int NumOfVertexABO = 0;//每个顶点的属性数量
-	int aboCount = 0;//abo数量
+	int NumOfVertexVBO = 0;//每个顶点的顶点数量
 	double* Varying = NULL;//当前的Varying变量，经过插值之后会传递给片元着色器
 	int CountOfVarying = 0;//Varying变量数量
 	std::list<EdgeTableItem>* NET = NULL;//新边表和ViewPortHeight大小一样
-	double* interpolationAbo = NULL;//当前线程在绘制当前顶点插值之后的ABO，因为单线程，所以这里只需要一个就行了
 	double* interpolationVarying = NULL;//当前线程在绘制当前顶点插值之后的varying，因为单线程，所以这里只需要一个就行了
 };
 #endif // !_GRAPHICSM

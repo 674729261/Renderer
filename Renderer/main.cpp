@@ -14,7 +14,6 @@
 bool loadOBJ(const char* filename, Graphics* gps)
 {
 	std::vector<double> vbo;
-	std::vector<double> abo;
 	int vboCount = 0;
 	struct Postion//只想在函数内部使用这个Position，所以定义在函数内部
 	{
@@ -79,18 +78,20 @@ bool loadOBJ(const char* filename, Graphics* gps)
 					vbo.push_back(ps[index[0] - 1].x);
 					vbo.push_back(ps[index[0] - 1].y);
 					vbo.push_back(ps[index[0] - 1].z);//添加了当前三角形第i个顶点的坐标
-					abo.push_back(TextureCoordinate[index[1] - 1].x);
-					abo.push_back(TextureCoordinate[index[1] - 1].y);//添加了当前三角形第i个顶点的纹理坐标
-					abo.push_back(normals[index[2] - 1].x);
-					abo.push_back(normals[index[2] - 1].y);
-					abo.push_back(normals[index[2] - 1].z);//添加了当前三角形第i个顶点的法向量
+
+					vbo.push_back(TextureCoordinate[index[1] - 1].x);
+					vbo.push_back(TextureCoordinate[index[1] - 1].y);//添加了当前三角形第i个顶点的纹理坐标
+
+					vbo.push_back(normals[index[2] - 1].x);
+					vbo.push_back(normals[index[2] - 1].y);
+					vbo.push_back(normals[index[2] - 1].z);//添加了当前三角形第i个顶点的法向量
 					vboCount++;
 				}
 			}
 		}
 		fin.close();
-		gps->setVBO(&vbo[0], vboCount);
-		gps->setABO(&abo[0], 5, vboCount);//每个顶点有五个属性，分别是Tx,Ty,Nx,Ny,Nz;T表示纹理，N表示法向量
+		gps->setVBO(&vbo[0], 8, vboCount);//每个顶点有8个属性，分别是x,y,z(顶点坐标), Tx,Ty,Nx,Ny,Nz;T表示纹理，N表示法向量
+		gps->setVaryingCount(5);//需要从顶点着色器传递5个参数到片元着色器(即Tx,Ty,Nx,Ny,Nz)
 		return true;
 	}
 	else
@@ -106,7 +107,7 @@ Graphics* gp;
 Matrix4 invModMatrix;//mod矩阵的逆矩阵(inverseMatrix)
 Vector4 invLight;//光线的逆向量
 //vs fs的定义在Graph的头文件有说明
-void vs(double const vbo[3], double* ABO, double* varying, Point4& Position)//顶点着色器
+void vs(double const vbo[3], double* varying, Point4& Position)//顶点着色器
 {
 
 	double src[4];
@@ -115,10 +116,15 @@ void vs(double const vbo[3], double* ABO, double* varying, Point4& Position)//�
 	src[2] = vbo[2];
 	src[3] = 1;
 	Matrix::Mult(mvpMatrix.Value[0], src, 4, 1, 4, Position.value);//计算顶点坐标
+	varying[0] = vbo[3];
+	varying[1] = vbo[4];
+	varying[2] = vbo[5];
+	varying[3] = vbo[6];
+	varying[4] = vbo[7];
 }
-void fs(double* ABO, double* varying, COLORREF& FragColor)//片元着色器
+void fs(double* varying, COLORREF& FragColor)//片元着色器
 {
-	Vector3 nor(ABO[2], ABO[3], ABO[4]);
+	Vector3 nor(varying[2], varying[3], varying[4]);
 	double diffuse = Vector4::dot(nor, invLight);//根据光向量和法线夹角计算光照强度
 	if (diffuse < 0.1)
 	{
@@ -128,7 +134,7 @@ void fs(double* ABO, double* varying, COLORREF& FragColor)//片元着色器
 	{
 		diffuse = 1.0;
 	}
-	COLORREF c = gp->texture2D(ABO[0], ABO[1]);//读取指定纹素,因为ABO被设置成每个顶点两个属性，一个是纹理x坐标，一个是纹理y坐标
+	COLORREF c = gp->texture2D(varying[0], varying[1]);//读取指定纹素,因为ABO被设置成每个顶点两个属性，一个是纹理x坐标，一个是纹理y坐标
 	//COLORREF c = WHITE;
 	FragColor = RGB(diffuse * GetRValue(c), diffuse * GetGValue(c), diffuse * GetBValue(c));
 }
@@ -144,7 +150,6 @@ int main()
 	gp->CW_CCW = false;//绘制逆时针三角形
 	gp->VertexShader = vs;//设置顶点着色器程序
 	gp->FragmentShader = fs;//设置片元着色器程序
-	//gp->setVaryingCount(1);//需要从顶点着色器传递1个参数到片元着色器
 
 	Vector3 eyePosition(0, 0, 9.5); //相机原点
 	if (!loadOBJ("mod/cube.obj", gp))//从文件加载模型

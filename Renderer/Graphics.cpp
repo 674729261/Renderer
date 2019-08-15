@@ -55,8 +55,6 @@ Graphics::Graphics(unsigned int w,unsigned int h) :ScreenWidth(w), ScreenHeight(
 	VertexShader = NULL;
 	TextureHeight = 0;
 	TextureWidth = 0;
-	TransmitAbo = NULL;
-	aboBuffer = NULL;
 	vboBuffer = NULL;
 }
 // 快速画点函数,复制于官网教程https://codeabc.cn/yangw/post/the-principle-of-quick-drawing-points
@@ -126,18 +124,12 @@ void Graphics::flush()
 bool Graphics::Draw()
 {
 	errmsg[0] = '\0';//清空错误信息
-	if (aboCount < vboCount)
-	{
-		sprintf_s(errmsg, sizeof(errmsg), "abo顶点数量小于vbo顶点数量，无法绘制\n");
-		return false;
-	}
 	Point4 parray[3];//position Array
 	for (int i = 0; i < vboCount / 3; i++)//i表示三角形数量
 	{
-		memcpy(TransmitAbo, aboBuffer + i * 3 * NumOfVertexABO, NumOfVertexABO * sizeof(double) * 3);//将当前三角形三个顶点abo属性复制到TransmitAbo
 		for (int j = 0; j < 3; j++)
 		{
-			VertexShader(vboBuffer + (i * 9 + j * 3), TransmitAbo + j * NumOfVertexABO, Varying + j * CountOfVarying, parray[j]);//对每个顶点调用顶点着色器
+			VertexShader(vboBuffer + (i * 3* NumOfVertexVBO + j * NumOfVertexVBO), Varying + j * CountOfVarying, parray[j]);//对每个顶点调用顶点着色器
 			parray[j].value[0] = parray[j].value[0] / parray[j].value[3];//X,Y,Z按照齐次坐标规则正确还原，W暂时不还原，后面插值不用1/Z，改为用1/W插值
 			parray[j].value[1] = parray[j].value[1] / parray[j].value[3];
 			parray[j].value[2] = parray[j].value[2] / parray[j].value[3];//经过矩阵计算,W变成了原始点的-Z值
@@ -465,16 +457,12 @@ void Graphics::DrawTriangle(Point4* pArray, double Square)
 								continue;//相机远点和屏幕当前点的连线和三角形平行，无法计算深度(实际上这个像素也是不在三角形内部的，但是因为像素取值都是整数，所以这里就需要判断一下了)
 							}
 							double originDepth = 1 / (Weight[0] * (1 / pArray[0].value[3]) + Weight[1] * (1 / pArray[1].value[3]) + Weight[2] * (1 / pArray[2].value[3]));//这个值是原始深度
-							for (int index = 0; index < NumOfVertexABO; index++)//对每个abo插值
-							{
-								interpolationAbo[index] = originDepth * (TransmitAbo[index] / pArray[0].value[3] * Weight[0] + TransmitAbo[index + NumOfVertexABO] / pArray[1].value[3] * Weight[1] + TransmitAbo[index + NumOfVertexABO * 2] / pArray[2].value[3] * Weight[2]);
-							}
 							for (int index = 0; index < CountOfVarying; index++)//对每个Varying插值
 							{
 								interpolationVarying[index] = originDepth * (Varying[index] / pArray[0].value[3] * Weight[0] + Varying[index + CountOfVarying] / pArray[1].value[3] * Weight[1] + Varying[index + CountOfVarying * 2] / pArray[2].value[3] * Weight[2]);
 							}
 							COLORREF c;
-							FragmentShader(interpolationAbo, interpolationVarying, c);//调用片元着色器
+							FragmentShader(interpolationVarying, c);//调用片元着色器
 
 							//因为(x,scanline)是视口坐标，所以需要加上一个(viewPortX,viewPortY)的偏移
 							fast_putpixel(x + viewPortX, scanLine + (ScreenHeight - viewPortY-viewPortHeight), c);//填充颜色
@@ -491,38 +479,16 @@ void Graphics::DrawTriangle(Point4* pArray, double Square)
 	}
 }
 
-void Graphics::setVBO(double* buffer, int count)
+void Graphics::setVBO(double* buffer, int numOfvertex, int count)
 {
 	if (vboBuffer != NULL)
 	{
 		delete[] vboBuffer;
 	}
-	vboBuffer = new double[sizeof(double) * 3 * count];
-	memcpy(vboBuffer, buffer, sizeof(double) * 3 * count);
+	vboBuffer = new double[sizeof(double) * numOfvertex * count];
+	memcpy(vboBuffer, buffer, sizeof(double) * numOfvertex * count);
+	NumOfVertexVBO = numOfvertex;
 	vboCount = count;
-}
-
-void Graphics::setABO(double* buffer, int numOfvertex, int count)
-{
-	if (TransmitAbo != NULL)
-	{
-		delete[] TransmitAbo;
-	}
-	TransmitAbo = new double[numOfvertex * 3];
-
-	if (aboBuffer != NULL)
-	{
-		delete[] aboBuffer;
-	}
-	if (interpolationAbo != NULL)
-	{
-		delete[] interpolationAbo;
-	}
-	interpolationAbo = new double[numOfvertex];
-	aboBuffer = new double[sizeof(double) * numOfvertex * count];
-	memcpy(aboBuffer, buffer, sizeof(double) * numOfvertex * count);
-	NumOfVertexABO = numOfvertex;
-	aboCount = count;
 }
 /*
 重心坐标插值:假如有三个顶点P0,P1,P2和待插值点P,三角形面积为S,三角形P P1 P2的面积为S0(P0对边和P围成的三角形),P P0 P2面积为S1,P P0 P1面积为S2
@@ -663,10 +629,6 @@ Graphics::~Graphics()
 	{
 		delete[] DepthBuffer;
 	}
-	if (TransmitAbo != NULL)
-	{
-		delete[] TransmitAbo;
-	}
 	if (textureBuffer != NULL)
 	{
 		delete[] textureBuffer;
@@ -674,10 +636,6 @@ Graphics::~Graphics()
 	if (vboBuffer != NULL)
 	{
 		delete[] vboBuffer;
-	}
-	if (aboBuffer != NULL)
-	{
-		delete[] aboBuffer;
 	}
 	if (Varying != NULL)
 	{
@@ -690,10 +648,6 @@ Graphics::~Graphics()
 	if (interpolationVarying != NULL)
 	{
 		delete[] interpolationVarying;
-	}
-	if (interpolationAbo != NULL)
-	{
-		delete[] interpolationAbo;
 	}
 	closegraph();          // 关闭绘图窗口
 }
