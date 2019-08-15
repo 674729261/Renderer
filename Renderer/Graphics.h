@@ -1,5 +1,5 @@
-﻿#ifndef _GRAPHICSM
-#define _GRAPHICSM
+﻿#ifndef _GRAPHICSMLIBRARY
+#define _GRAPHICSMLIBRARY
 #include <graphics.h>      // 引用图形库头文件
 #include <list>
 #include "Point2.h"
@@ -21,7 +21,7 @@ CVV坐标系是上面为Y正方向,右面为X正方向,屏幕向内为Z正方向
 
 视口空间和屏幕空间的宽高单位一样，仅仅是增加了一个x,y的偏移
 */
-class Graphics
+class GraphicsLibrary
 {
 	/*坐标系是上面为Y正方向，右面为X正方向，屏幕向外为Z正方向*/
 public:
@@ -40,10 +40,10 @@ public:
 	*/
 	bool enable_CW = true;//是否启用顺时针逆时针三角形剔除
 	bool CW_CCW = false;//默认逆时针,true为顺时针
-	Graphics(unsigned int w, unsigned int h);
+	GraphicsLibrary(unsigned int w, unsigned int h);
 	void setVBO(double* buffer, int numOfvertex, int count);
 	void Interpolation(Point4 parry[3], double x, double y, double Weight[3], double Square);//使用屏幕坐标插值计算三角形各个顶点的权重并保存在Weight中
-	~Graphics();
+	~GraphicsLibrary();
 	void fast_putpixel(int x, int y, COLORREF c);
 	COLORREF fast_getpixel(int x, int y);
 	bool loadBMP(const char* filename);//加载bmp文件到纹理,返回false表示失败（只能加载24位，无压缩，纵轴正向BMP）
@@ -73,4 +73,4 @@ private:
 	std::list<EdgeTableItem>* NET = NULL;//新边表和ViewPortHeight大小一样
 	double* interpolationVarying = NULL;//当前线程在绘制当前顶点插值之后的varying，因为单线程，所以这里只需要一个就行了
 };
-#endif // !_GRAPHICSM
+#endif // !_GRAPHICSMLIBRARY

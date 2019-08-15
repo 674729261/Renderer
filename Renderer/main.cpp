@@ -11,7 +11,7 @@
 #include <chrono> 
 #pragma warning(disable:4996)
 //从obj文件读取顶点数据和纹理坐标，暂时不考虑法线
-bool loadOBJ(const char* filename, Graphics* gps)
+bool loadOBJ(const char* filename, GraphicsLibrary* gl)
 {
 	std::vector<double> vbo;
 	int vboCount = 0;
@@ -90,8 +90,8 @@ bool loadOBJ(const char* filename, Graphics* gps)
 			}
 		}
 		fin.close();
-		gps->setVBO(&vbo[0], 8, vboCount);//每个顶点有8个属性，分别是x,y,z(顶点坐标), Tx,Ty,Nx,Ny,Nz;T表示纹理，N表示法向量
-		gps->setVaryingCount(5);//需要从顶点着色器传递5个参数到片元着色器(即Tx,Ty,Nx,Ny,Nz)
+		gl->setVBO(&vbo[0], 8, vboCount);//每个顶点有8个属性，分别是x,y,z(顶点坐标), Tx,Ty,Nx,Ny,Nz;T表示纹理，N表示法向量
+		gl->setVaryingCount(5);//需要从顶点着色器传递5个参数到片元着色器(即Tx,Ty,Nx,Ny,Nz)
 		return true;
 	}
 	else
@@ -103,7 +103,7 @@ bool loadOBJ(const char* filename, Graphics* gps)
 
 
 Matrix4 mvpMatrix;
-Graphics* gp;
+GraphicsLibrary* gl;
 Matrix4 invModMatrix;//mod矩阵的逆矩阵(inverseMatrix)
 Vector4 invLight;//光线的逆向量
 //vs fs的定义在Graph的头文件有说明
@@ -134,7 +134,7 @@ void fs(double* varying, COLORREF& FragColor)//片元着色器
 	{
 		diffuse = 1.0;
 	}
-	COLORREF c = gp->texture2D(varying[0], varying[1]);//读取指定纹素,因为ABO被设置成每个顶点两个属性，一个是纹理x坐标，一个是纹理y坐标
+	COLORREF c = gl->texture2D(varying[0], varying[1]);//读取指定纹素,因为ABO被设置成每个顶点两个属性，一个是纹理x坐标，一个是纹理y坐标
 	//COLORREF c = WHITE;
 	FragColor = RGB(diffuse * GetRValue(c), diffuse * GetGValue(c), diffuse * GetBValue(c));
 }
@@ -142,27 +142,27 @@ int main()
 {
 	char msg[256];//往调试器打印信息用的缓冲区
 	int width = 640, height = 480;
-	gp = new Graphics(width, height);//创建一个画布
+	gl = new GraphicsLibrary(width, height);//创建一个画布
 	int vw = width / 2;
 	int vh = height / 2;
-	//gp->setViewPort(vw, vh, vw, vh);//设置视口，和opengl概念一致
-	gp->enable_CW = true;//启用顺时针逆时针三角形剔除
-	gp->CW_CCW = false;//绘制逆时针三角形
-	gp->VertexShader = vs;//设置顶点着色器程序
-	gp->FragmentShader = fs;//设置片元着色器程序
+	//gl->setViewPort(vw, vh, vw, vh);//设置视口，和opengl概念一致
+	gl->enable_CW = true;//启用顺时针逆时针三角形剔除
+	gl->CW_CCW = false;//绘制逆时针三角形
+	gl->VertexShader = vs;//设置顶点着色器程序
+	gl->FragmentShader = fs;//设置片元着色器程序
 
 	Vector3 eyePosition(0, 0, 9.5); //相机原点
-	if (!loadOBJ("mod/cube.obj", gp))//从文件加载模型
+	if (!loadOBJ("mod/cube.obj", gl))//从文件加载模型
 	{
 		sprintf(msg, "加载obj文件失败\n");
 		OutputDebugString(msg);//往调试器输出错误信息
-		delete gp;
+		delete gl;
 		return -1;
 	}
-	if (!gp->loadBMP("mod/teapot.bmp"))//加载BMP文件做纹理
+	if (!gl->loadBMP("mod/teapot.bmp"))//加载BMP文件做纹理
 	{
-		OutputDebugString(gp->errmsg);//往调试器输出错误信息
-		delete gp;
+		OutputDebugString(gl->errmsg);//往调试器输出错误信息
+		delete gl;
 		return -1;
 	}
 
@@ -277,11 +277,11 @@ int main()
 		Matrix::Mult(invModMatrix.Value[0], lightvec.value, 4, 1, 4, invLight.value);//计算光线的逆向量(即模型不动，光线动)
 		invLight.Normalize();
 		Matrix::Mult(vpMatrix.Value[0], mMatrix.Value[0], 4, 4, 4, mvpMatrix.Value[0]);//计算MVP矩阵
-		gp->clearDepth(1);//清除深度缓冲区
-		gp->clear();//清除屏幕
-		gp->Draw();//绘制
-		gp->flush();//等待同步
-		gp->Swap();//绘制到屏幕
+		gl->clearDepth(1);//清除深度缓冲区
+		gl->clear();//清除屏幕
+		gl->Draw();//绘制
+		gl->flush();//等待同步
+		gl->Swap();//绘制到屏幕
 		std::chrono::system_clock::time_point end = std::chrono::system_clock::now();
 		std::chrono::microseconds duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
 		double useTime = double(duration.count()) * std::chrono::microseconds::period::num / std::chrono::microseconds::period::den;//花费时间
@@ -295,6 +295,6 @@ int main()
 		OutputDebugString(msg);//往调试器输出两帧绘制时间间隔
 		isDraw = false;//本轮绘制结束
 	}
-	delete gp;
+	delete gl;
 	return 0;
 }

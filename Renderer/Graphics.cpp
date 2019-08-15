@@ -6,7 +6,7 @@
 #include <algorithm>
 #include <intrin.h> 
 #pragma warning(disable:4996)
-bool Graphics::setViewPort(int x, int y, int w, int h)
+bool GraphicsLibrary::setViewPort(int x, int y, int w, int h)
 {
 	if (x < 0 || y < 0)
 	{
@@ -45,7 +45,7 @@ bool Graphics::setViewPort(int x, int y, int w, int h)
 	return true;
 }
 
-Graphics::Graphics(unsigned int w,unsigned int h) :ScreenWidth(w), ScreenHeight(h)
+GraphicsLibrary::GraphicsLibrary(unsigned int w,unsigned int h) :ScreenWidth(w), ScreenHeight(h)
 {
 	setViewPort(0,0,w,h);
 	initgraph(w, h);
@@ -58,19 +58,19 @@ Graphics::Graphics(unsigned int w,unsigned int h) :ScreenWidth(w), ScreenHeight(
 	vboBuffer = NULL;
 }
 // 快速画点函数,复制于官网教程https://codeabc.cn/yangw/post/the-principle-of-quick-drawing-points
-void Graphics::fast_putpixel(int x, int y, COLORREF c)
+void GraphicsLibrary::fast_putpixel(int x, int y, COLORREF c)
 {
 	g_pBuf[y * ScreenWidth + x] = BGR(c);
 }
 
 // 快速读点函数,复制于官网教程https://codeabc.cn/yangw/post/the-principle-of-quick-drawing-points
-COLORREF Graphics::fast_getpixel(int x, int y)
+COLORREF GraphicsLibrary::fast_getpixel(int x, int y)
 {
 	COLORREF c = g_pBuf[y * ScreenWidth + x];
 	return BGR(c);
 }
 
-bool Graphics::loadBMP(const char* filename)
+bool GraphicsLibrary::loadBMP(const char* filename)
 {
 	errmsg[0] = '\0';//清空错误信息
 	char tmp[1024];
@@ -116,12 +116,12 @@ bool Graphics::loadBMP(const char* filename)
 	return !isError;
 }
 
-void Graphics::flush()
+void GraphicsLibrary::flush()
 {
 	FlushBatchDraw();
 }
 
-bool Graphics::Draw()
+bool GraphicsLibrary::Draw()
 {
 	errmsg[0] = '\0';//清空错误信息
 	Point4 parray[3];//position Array
@@ -177,24 +177,24 @@ bool Graphics::Draw()
 	return true;
 }
 
-void Graphics::clear()
+void GraphicsLibrary::clear()
 {
 	cleardevice();
 }
 
-void Graphics::clearDepth(double v)
+void GraphicsLibrary::clearDepth(double v)
 {
 	std::fill(DepthBuffer, DepthBuffer + (viewPortWidth * viewPortHeight), v);
 	//memset(DepthBuffer, 0x7f, sizeof(double)*Width*Height);//用0x7f作为memset能搞定的极大值，memset应该有优化，比如调用cpu的特殊指令可以在较短的周期内赋值
 }
 
-void Graphics::Swap()
+void GraphicsLibrary::Swap()
 {
 	EndBatchDraw();
 	BeginBatchDraw();
 }
 
-void Graphics::setVaryingCount(int count)
+void GraphicsLibrary::setVaryingCount(int count)
 {
 	if (Varying != NULL)
 	{
@@ -209,7 +209,7 @@ void Graphics::setVaryingCount(int count)
 	Varying = new double[count * 3];
 }
 
-COLORREF Graphics::texture2D(double x, double y)
+COLORREF GraphicsLibrary::texture2D(double x, double y)
 {
 	x = x - floor(x);
 	y = y - floor(y);
@@ -238,7 +238,7 @@ bool SortEdgeTableItem(EdgeTableItem const& E1, EdgeTableItem const& E2)//将边
 	}
 }
 //本函数中插值计算都是采用double
-void Graphics::DrawTriangle(Point4* pArray, double Square)
+void GraphicsLibrary::DrawTriangle(Point4* pArray, double Square)
 {
 	unsigned int Count = 3;//顶点数量
 	int Min = (int)pArray[0].value[1];
@@ -479,7 +479,7 @@ void Graphics::DrawTriangle(Point4* pArray, double Square)
 	}
 }
 
-void Graphics::setVBO(double* buffer, int numOfvertex, int count)
+void GraphicsLibrary::setVBO(double* buffer, int numOfvertex, int count)
 {
 	if (vboBuffer != NULL)
 	{
@@ -500,7 +500,7 @@ W1=S1/S,W2=S2/S,W3=S3/S
 //使用sse加速,一次插值4个点
 #define _INTERPOLATRIONBYSQUARE //使用面积插值，没定义本宏的话使用直线求交点的方式插值，对比一下速度，用面积插值可用SSE优化
 #ifdef _INTERPOLATRIONBYSQUARE
-void Graphics::Interpolation(Point4 ps[3], double x, double y, double Weight[3],double Square)
+void GraphicsLibrary::Interpolation(Point4 ps[3], double x, double y, double Weight[3],double Square)
 {
 	//使用有向面积计算重心坐标插值
 	/*
@@ -520,7 +520,7 @@ void Graphics::Interpolation(Point4 ps[3], double x, double y, double Weight[3],
 	Weight[2] = s2 / Square;
 }
 #else
-void Graphics::Interpolation(Point4 pArray[3], double x, double y, double Weight[3])
+void GraphicsLibrary::Interpolation(Point4 pArray[3], double x, double y, double Weight[3])
 {
 	/*
 	两点式：
@@ -623,7 +623,7 @@ void Graphics::Interpolation(Point4 pArray[3], double x, double y, double Weight
 
 
 
-Graphics::~Graphics()
+GraphicsLibrary::~GraphicsLibrary()
 {
 	if (DepthBuffer != NULL)
 	{
