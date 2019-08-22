@@ -10,7 +10,7 @@ bool GraphicsLibrary::setViewPort(int x, int y, int w, int h)
 {
 	if (x < 0 || y < 0)
 	{
-		sprintf_s(errmsg,sizeof(errmsg),"视口起始坐标小于0");
+		sprintf_s(errmsg, sizeof(errmsg), "视口起始坐标小于0");
 		return false;
 	}
 	if (w < 0 || h < 0)
@@ -45,9 +45,9 @@ bool GraphicsLibrary::setViewPort(int x, int y, int w, int h)
 	return true;
 }
 
-GraphicsLibrary::GraphicsLibrary(unsigned int w,unsigned int h) :ScreenWidth(w), ScreenHeight(h)
+GraphicsLibrary::GraphicsLibrary(unsigned int w, unsigned int h) :ScreenWidth(w), ScreenHeight(h)
 {
-	setViewPort(0,0,w,h);
+	setViewPort(0, 0, w, h);
 	initgraph(w, h);
 	BeginBatchDraw();
 	g_pBuf = GetImageBuffer(NULL);
@@ -121,58 +121,106 @@ void GraphicsLibrary::flush()
 	FlushBatchDraw();
 }
 
+//对边进行裁剪，这里只裁剪near平面，因为w分量>0时在栅格化的时候就处理了，和opengl还是有点不同，主要是我懒得修改栅格化的代码了
+//如果z/w<-1则需要对其进行裁剪,即z+w<0则需要裁剪
+//返回0表示平凡接受，返回-1表示本条边平凡拒绝,返回1表示有裁剪并且将A点挪到新点，2表示将B挪到新点
+int GraphicsLibrary::clipEdge(Point4& A, Point4& B, Point4& tmp, double& proportion)
+{
+	int a = 0, b = 0;//等于0表示在z=-1平面内部
+	if (A.value[2] + A.value[3] < 0)
+	{
+		a = 1;
+	}
+	if (B.value[2] + B.value[3] < 0)
+	{
+		b = 1;
+	}
+	if (a == 0 && b == 0)
+	{
+		return 0;
+	}
+	if (a == 1 && b == 1)
+	{
+		return -1;
+	}
+	proportion = (A.value[2] + A.value[3]) / (A.value[2] + A.value[3] - B.value[2] - B.value[3]);//求出t的比例系数(t==0时和A点重合,也就是B点的权值为0)
+	tmp.value[0] = A.value[0] + (B.value[0] - A.value[0]) * proportion;//计算新交点
+	tmp.value[1] = A.value[1] + (B.value[1] - A.value[1]) * proportion;
+	tmp.value[2] = A.value[2] + (B.value[2] - A.value[2]) * proportion;
+	tmp.value[3] = A.value[3] + (B.value[3] - A.value[3]) * proportion;
+	if (a == 1)//对A点进行移动
+	{
+		return 1;
+	}
+	if (b == 1)//对B点进行移动
+	{
+		return 2;
+	}
+	return 0;
+}
+
 bool GraphicsLibrary::Draw()
 {
 	errmsg[0] = '\0';//清空错误信息
 	Point4 parray[3];//position Array
+	Point4 realPoint[4];//经过裁剪之后的边，共三条
 	for (int i = 0; i < vboCount / 3; i++)//i表示三角形数量
 	{
-		for (int j = 0; j < 3; j++)
+		for (int j = 0; j < 3; j++)//对三个点进行透视乘法
 		{
-			VertexShader(vboBuffer + (i * 3* NumOfVertexVBO + j * NumOfVertexVBO), Varying + j * CountOfVarying, parray[j]);//对每个顶点调用顶点着色器
-			parray[j].value[0] = parray[j].value[0] / parray[j].value[3];//X,Y,Z按照齐次坐标规则正确还原，W暂时不还原，后面插值不用1/Z，改为用1/W插值
-			parray[j].value[1] = parray[j].value[1] / parray[j].value[3];
-			parray[j].value[2] = parray[j].value[2] / parray[j].value[3];//经过矩阵计算,W变成了原始点的-Z值
-
-			parray[j].value[0] = (parray[j].value[0] + 1) / 2 * viewPortWidth;//将ccv空间转换到视口空间
-			parray[j].value[1] = viewPortHeight - (parray[j].value[1] + 1) / 2 * viewPortHeight;//在viewPort上下颠倒
+			VertexShader(vboBuffer + (i * 3 * NumOfVertexVBO + j * NumOfVertexVBO), Varying + j * CountOfVarying, parray[j]);//对每个顶点调用顶点着色器
 		}
-		//经过反复考虑，不需要对X,Y做扫描线范围判断，因为实际上在扫描线填充的时候会自动忽略掉这些点
-		if ((parray[0].value[2] < -1 && parray[1].value[2] < -1 && parray[2].value[2] < -1)//三角形深度值全部小于-1
-			|| (parray[0].value[2] > 1 && parray[1].value[2] > 1 && parray[2].value[2] > 1))//三角形深度值全部超过1
-		{//以上这几种情况三角形不会有任意一个像素会投影到当前屏幕，所以可以不绘制
-			continue;
+		int effectivePointCount = 0;//记录裁剪之后的顶点数量,最大只能到4,类似于单条直线裁剪三角形，最多只能裁剪出一个四边形
+		for (int j = 0; j < 3; j++)//记录每条边的入点、出点和终点
+		{
+			double WeightB;//B点的权值
+			Point4 tmp;
+			int ret = clipEdge(parray[j], parray[(j + 1) % 3], tmp, WeightB);//裁剪边(只裁剪near平面)
+			if (ret == -1)//平凡拒绝
+			{
+				continue;//不处理本条边
+			}
+			if (ret == 1)//计算新的varying值
+			{
+				realPoint[effectivePointCount] = tmp;//入点
+				realPoint[effectivePointCount + 1] = parray[(j + 1) % 3];//终点
+				for (int k = 0; k < CountOfVarying; k++)//设置新的varying
+				{
+					*(realVarying + effectivePointCount * CountOfVarying + k) = *(Varying + j * CountOfVarying + k) * (1 - WeightB) + *(Varying + (j + 1) % 3 * CountOfVarying + k) * WeightB;
+				}
+				memcpy(realVarying + (effectivePointCount + 1) * CountOfVarying, Varying + (j + 1) % 3 * CountOfVarying, sizeof(double) * CountOfVarying);
+				effectivePointCount += 2;
+			}
+			else if (ret == 2)//计算新的varying值
+			{
+				realPoint[effectivePointCount] = tmp;//出点
+				for (int k = 0; k < CountOfVarying; k++)//设置新的varying
+				{
+					*(realVarying + effectivePointCount * CountOfVarying + k) = *(Varying + j * CountOfVarying + k) * (1 - WeightB) + *(Varying + (j + 1) % 3 * CountOfVarying + k) * WeightB;
+				}
+				effectivePointCount += 1;
+			}
+			else //平凡接受
+			{
+				realPoint[effectivePointCount] = parray[(j + 1) % 3];//记录终点
+				memcpy(realVarying + (effectivePointCount) * CountOfVarying, Varying + (j + 1) % 3 * CountOfVarying, sizeof(double) * CountOfVarying);
+				effectivePointCount += 1;
+			}
 		}
-		/*
-		判断三角形的面积和方向
-		*/
-		Vector3 a(parray[0].value[0] - parray[1].value[0], parray[0].value[1] - parray[1].value[1], 0);
-		Vector3 b(parray[0].value[0] - parray[2].value[0], parray[0].value[1] - parray[2].value[1], 0);
+		if (effectivePointCount == 0)
+		{
+			continue;//三条边都被平凡拒绝，不用绘制了
+		}
 		
-		//使用有向面积判断顺逆时针和面积是否为0
-		double square = a.value[0]*b.value[1]-a.value[1]*b.value[0];
-		if (square == 0)
+		for (int k = 0; (k*3) < effectivePointCount; k++)//绘制被裁剪出来的两个三角形，如果被裁剪之后仍然是一个三角形的话，这两个三角形其中一个的面积为0
 		{
-			continue;
-		}
-		if (enable_CW)
-		{
-			if (!CW_CCW)//使用顺时针绘制
+			if (k != 0)//将RP[0]挪到RP[1]，然后绘制RP[1],RP[2],RP[3]这个三角形
 			{
-				if (square > 0)//实际确实逆时针
-				{
-					continue;
-				}
+				realPoint[k] = realPoint[k-1];
+				memcpy(realVarying + k * CountOfVarying, realVarying + (k-1) * CountOfVarying, sizeof(double) * CountOfVarying);
 			}
-			else//同上
-			{
-				if (square < 0)
-				{
-					continue;
-				}
-			}
+			DrawTriangle(realPoint + k, realVarying + k*CountOfVarying);
 		}
-		DrawTriangle(parray, square);
 	}
 	return true;
 }
@@ -200,6 +248,10 @@ void GraphicsLibrary::setVaryingCount(int count)
 	{
 		delete[] Varying;
 	}
+	if (realVarying != NULL)
+	{
+		delete[] Varying;
+	}
 	if (interpolationVarying != NULL)
 	{
 		delete[] interpolationVarying;
@@ -207,6 +259,7 @@ void GraphicsLibrary::setVaryingCount(int count)
 	interpolationVarying = new double[count];
 	CountOfVarying = count;
 	Varying = new double[count * 3];
+	realVarying = new double[count * 4];
 }
 
 COLORREF GraphicsLibrary::texture2D(double x, double y)
@@ -238,8 +291,51 @@ bool SortEdgeTableItem(EdgeTableItem const& E1, EdgeTableItem const& E2)//将边
 	}
 }
 //本函数中插值计算都是采用double
-void GraphicsLibrary::DrawTriangle(Point4* pArray, double Square)
+void GraphicsLibrary::DrawTriangle(Point4* parray, double* varying)
 {
+	Point4 pArray[3];
+	for (int i=0;i<3;i++)
+	{
+		pArray[i] = parray[i];
+		pArray[i].value[0] = pArray[i].value[0] / pArray[i].value[3];//X,Y,Z按照齐次坐标规则正确还原，W暂时不还原，后面插值不用1/Z，改为用1/W插值
+		pArray[i].value[1] = pArray[i].value[1] / pArray[i].value[3];
+		pArray[i].value[2] = pArray[i].value[2] / pArray[i].value[3];//经过矩阵计算,W变成了原始点的-Z值
+
+		//视口变换
+		pArray[i].value[0] = (pArray[i].value[0] + 1) / 2 * viewPortWidth;//将ccv空间转换到视口空间
+		pArray[i].value[1] = viewPortHeight - (pArray[i].value[1] + 1) / 2 * viewPortHeight;//在viewPort上下颠倒
+	}
+	/*
+			判断三角形的面积和方向
+			*/
+	Vector3 a(pArray[0].value[0] - pArray[1].value[0], pArray[0].value[1] - pArray[1].value[1], 0);
+	Vector3 b(pArray[0].value[0] - pArray[2].value[0], pArray[0].value[1] - pArray[2].value[1], 0);
+	//使用有向面积判断顺逆时针和面积是否为0
+	double square = a.value[0] * b.value[1] - a.value[1] * b.value[0];
+	if (square == 0)
+	{
+		return;
+	}
+	if (enable_CW)
+	{
+		if (!CW_CCW)//使用顺时针绘制
+		{
+			if (square > 0)//实际确实逆时针
+			{
+				return;
+			}
+		}
+		else//同上
+		{
+			if (square < 0)
+			{
+				return;
+			}
+		}
+	}
+
+
+
 	unsigned int Count = 3;//顶点数量
 	int Min = (int)pArray[0].value[1];
 	int Max = (int)pArray[0].value[1];
@@ -254,7 +350,7 @@ void GraphicsLibrary::DrawTriangle(Point4* pArray, double Square)
 			Min = (int)pArray[i].value[1];
 		}
 	}
-	
+
 	if (Max < 0 || Min >= (int)viewPortHeight)//三角形不在扫描线范围之内，直接忽略
 	{
 		return;
@@ -439,7 +535,7 @@ void GraphicsLibrary::DrawTriangle(Point4* pArray, double Square)
 					{
 						double Weight[3] = { 0,0,0 };
 						double Weight1[3] = { 0,0,0 };
-						Interpolation(pArray, x, scanLine, Weight,Square);//使用重心坐标插值计算出三个顶点对(j,i)的权重
+						Interpolation(pArray, x, scanLine, Weight, square);//使用重心坐标插值计算出三个顶点对(j,i)的权重
 						double depth = Weight[0] * pArray[0].value[2] + Weight[1] * pArray[1].value[2] + Weight[2] * pArray[2].value[2];//计算深度值，这个值虽然不是线性的，但是经过线性插值仍然能保证大的更大，小的更小
 						if (depth < -1.0 || depth>1.0)//如果深度超出[-1,1]区间则放弃当前像素
 						{
@@ -459,13 +555,13 @@ void GraphicsLibrary::DrawTriangle(Point4* pArray, double Square)
 							double originDepth = 1 / (Weight[0] * (1 / pArray[0].value[3]) + Weight[1] * (1 / pArray[1].value[3]) + Weight[2] * (1 / pArray[2].value[3]));//这个值是原始深度
 							for (int index = 0; index < CountOfVarying; index++)//对每个Varying插值
 							{
-								interpolationVarying[index] = originDepth * (Varying[index] / pArray[0].value[3] * Weight[0] + Varying[index + CountOfVarying] / pArray[1].value[3] * Weight[1] + Varying[index + CountOfVarying * 2] / pArray[2].value[3] * Weight[2]);
+								interpolationVarying[index] = originDepth * (varying[index] / pArray[0].value[3] * Weight[0] + varying[index + CountOfVarying] / pArray[1].value[3] * Weight[1] + varying[index + CountOfVarying * 2] / pArray[2].value[3] * Weight[2]);
 							}
 							COLORREF c;
 							FragmentShader(interpolationVarying, c);//调用片元着色器
 
 							//因为(x,scanline)是视口坐标，所以需要加上一个(viewPortX,viewPortY)的偏移
-							fast_putpixel(x + viewPortX, scanLine + (ScreenHeight - viewPortY-viewPortHeight), c);//填充颜色
+							fast_putpixel(x + viewPortX, scanLine + (ScreenHeight - viewPortY - viewPortHeight), c);//填充颜色
 							DepthBuffer[scanLine * ScreenWidth + x] = depth;//更新深度信息
 						}
 					}
@@ -500,7 +596,7 @@ W1=S1/S,W2=S2/S,W3=S3/S
 //使用sse加速,一次插值4个点
 #define _INTERPOLATRIONBYSQUARE //使用面积插值，没定义本宏的话使用直线求交点的方式插值，对比一下速度，用面积插值可用SSE优化
 #ifdef _INTERPOLATRIONBYSQUARE
-void GraphicsLibrary::Interpolation(Point4 ps[3], double x, double y, double Weight[3],double Square)
+void GraphicsLibrary::Interpolation(Point4 ps[3], double x, double y, double Weight[3], double Square)
 {
 	//使用有向面积计算重心坐标插值
 	/*
@@ -617,7 +713,7 @@ void GraphicsLibrary::Interpolation(Point4 pArray[3], double x, double y, double
 		Weight[0] = tmp2;
 		break;
 	default:break;
-	}
+}
 }
 #endif // _INTERPOLATRIONBYSQUARE
 

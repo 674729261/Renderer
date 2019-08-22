@@ -62,13 +62,15 @@ private:
 	unsigned char* bmpData = NULL;//位图数据区
 	unsigned char* textureBuffer = NULL;//纹理缓冲区，保存bmp位图
 	int TextureHeight, TextureWidth;//纹理宽高
-	void DrawTriangle(Point4* pointArray, double Square);//使用扫描线填充算法绘制三角形
+	void DrawTriangle(Point4* pointArray,double* varying);//使用扫描线填充算法绘制三角形
+	int clipEdge(Point4& A, Point4& B, Point4& tmp,double &proportion);//对边进行裁剪(在四维空间中)
 	DWORD* g_pBuf;//显存指针
 	double* DepthBuffer = NULL;//深度缓冲区
 	double* vboBuffer = NULL;//vob
 	int vboCount = 0;//顶点数量
 	int NumOfVertexVBO = 0;//每个顶点的顶点数量
 	double* Varying = NULL;//当前的Varying变量，经过插值之后会传递给片元着色器
+	double* realVarying = NULL;//当前的Varying变量，经过插值之后会传递给片元着色器，这里是可能经过CVV裁剪之后的varying
 	int CountOfVarying = 0;//Varying变量数量
 	std::list<EdgeTableItem>* NET = NULL;//新边表和ViewPortHeight大小一样
 	double* interpolationVarying = NULL;//当前线程在绘制当前顶点插值之后的varying，因为单线程，所以这里只需要一个就行了
