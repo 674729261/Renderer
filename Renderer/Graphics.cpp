@@ -171,7 +171,7 @@ bool GraphicsLibrary::Draw()
 			VertexShader(vboBuffer + (i * 3 * NumOfVertexVBO + j * NumOfVertexVBO), Varying + j * CountOfVarying, parray[j]);//对每个顶点调用顶点着色器
 		}
 		int effectivePointCount = 0;//记录裁剪之后的顶点数量,最大只能到4,类似于单条直线裁剪三角形，最多只能裁剪出一个四边形
-		for (int j = 0; j < 3; j++)//记录每条边的入点、出点和终点
+		for (int j = 0; j < 3; j++)//在near平面裁剪三角形，记录每条边的入点、出点和终点
 		{
 			double WeightB;//B点的权值
 			Point4 tmp;
