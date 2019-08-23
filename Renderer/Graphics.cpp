@@ -123,47 +123,98 @@ void GraphicsLibrary::flush()
 
 //对边进行裁剪，这里只裁剪near平面，因为w分量>0时在栅格化的时候就处理了，和opengl还是有点不同，主要是我懒得修改栅格化的代码了
 //如果z/w<-1则需要对其进行裁剪,即z+w<0则需要裁剪
-//返回0表示平凡接受，返回-1表示本条边平凡拒绝,返回1表示有裁剪并且将A点挪到新点，2表示将B挪到新点
-int GraphicsLibrary::clipEdge(Point4& A, Point4& B, Point4& tmp, double& proportion)
+//返回0表示平凡接受，返回-1表示本条边平凡拒绝,返回1表示有裁剪并且将A点挪到新点，2表示将B挪到新点,3表示AB都有移动
+int GraphicsLibrary::clipEdge(Point4& A, Point4& B, Point4& tmpA, Point4& tmpB, double& proportionA,double& proportionB)
 {
-	int a = 0, b = 0;//等于0表示在z=-1平面内部
-	if (A.value[2] + A.value[3] < 0)
+	int a= 0, b = 0;//对应位等于0表示接受，1表示拒绝
+	if (A.value[2] + A.value[3] < 0)//near平面
 	{
 		a = 1;
 	}
-	if (B.value[2] + B.value[3] < 0)
+	if (A.value[2] - A.value[3] > 0)//far平面
+	{
+		a = (1<<1)|a;
+	}
+
+	if (B.value[2] + B.value[3] < 0)//near平面
 	{
 		b = 1;
 	}
-	if (a == 0 && b == 0)
+	if (B.value[2] - B.value[3] > 0)//far平面
+	{
+		b = (1<<1)|b;
+	}
+
+	if ((a|b)==0)//A被B平凡接受：A全部包含于B(A为B的子集)
 	{
 		return 0;
 	}
-	if (a == 1 && b == 1)
+	if ((a&b)!=0)//A被B平凡拒绝：AB无交集
 	{
 		return -1;
 	}
-	proportion = (A.value[2] + A.value[3]) / (A.value[2] + A.value[3] - B.value[2] - B.value[3]);//求出t的比例系数(t==0时和A点重合,也就是B点的权值为0)
-	tmp.value[0] = A.value[0] + (B.value[0] - A.value[0]) * proportion;//计算新交点
-	tmp.value[1] = A.value[1] + (B.value[1] - A.value[1]) * proportion;
-	tmp.value[2] = A.value[2] + (B.value[2] - A.value[2]) * proportion;
-	tmp.value[3] = A.value[3] + (B.value[3] - A.value[3]) * proportion;
-	if (a == 1)//对A点进行移动
+	double ta = 0.0, tb = 1.0, t;//t表示B点的占比，初始情况下ta中B的权值为0，tb中B的权值为1
+	
+	if ((a & 0x01) == 1)//A点在外面
 	{
-		return 1;
+		t = (A.value[2] + A.value[3]) / (A.value[2] + A.value[3] - B.value[2] - B.value[3]);//求出t的比例系数(t==0时和A点重合,也就是B点的权值为0),near平面裁剪
+		ta = max(ta, t);
 	}
-	if (b == 1)//对B点进行移动
+	else if ((b & 0x01) == 1)//B点在外面
 	{
-		return 2;
+		t = (A.value[2] + A.value[3]) / (A.value[2] + A.value[3] - B.value[2] - B.value[3]);//求出t的比例系数(t==0时和A点重合,也就是B点的权值为0),near平面裁剪
+		tb = min(tb, t);
 	}
-	return 0;
+	
+
+	if (((a >> 1) & 0x01) == 1)//裁剪A点
+	{
+		t = (A.value[3] - A.value[2]) / (B.value[2] - A.value[2] + A.value[3] - B.value[3]);//far平面裁剪
+		ta = max(ta, t);//因为随着裁剪的进行，a点可能越来越靠近B点，所以最靠近B点的那个裁剪结果就是我们最后想要的结果，即max(ta,t)
+	}
+	else//裁剪B点
+	{
+		t = (A.value[3] - A.value[2]) / (B.value[2] - A.value[2] + A.value[3] - B.value[3]);//far平面裁剪
+		tb = min(tb, t);
+	}
+	if (ta > tb)//经过多个边界裁剪之后，裁剪剩余的a点比b点更加靠近原始的B点，也就是这个线段已经裁没了
+		return -1;//平凡拒绝
+
+
+	proportionA = ta;
+	proportionB = tb;
+	int result=0;
+	if (a != 0)//A点有修改
+	{
+		tmpA.value[0] = A.value[0] + (B.value[0] - A.value[0]) * ta;//计算新交点
+		tmpA.value[1] = A.value[1] + (B.value[1] - A.value[1]) * ta;
+		tmpA.value[2] = A.value[2] + (B.value[2] - A.value[2]) * ta;
+		tmpA.value[3] = A.value[3] + (B.value[3] - A.value[3]) * ta;
+		result = 1;
+	}
+	if (b != 0)//B点有修改
+	{
+		tmpB.value[0] = A.value[0] + (B.value[0] - A.value[0]) * tb;//计算新交点
+		tmpB.value[1] = A.value[1] + (B.value[1] - A.value[1]) * tb;
+		tmpB.value[2] = A.value[2] + (B.value[2] - A.value[2]) * tb;
+		tmpB.value[3] = A.value[3] + (B.value[3] - A.value[3]) * tb;
+		if (result == 0)
+		{
+			result = 2;
+		}
+		else 
+		{
+			result = 3;
+		}
+	}
+	return result;
 }
 
 bool GraphicsLibrary::Draw()
 {
 	errmsg[0] = '\0';//清空错误信息
 	Point4 parray[3];//position Array
-	Point4 realPoint[4];//经过裁剪之后的边，共三条
+	Point4 realPoint[9];//经过裁剪之后的边，共三条
 	for (int i = 0; i < vboCount / 3; i++)//i表示三角形数量
 	{
 		for (int j = 0; j < 3; j++)//对三个点进行透视乘法
@@ -173,32 +224,44 @@ bool GraphicsLibrary::Draw()
 		int effectivePointCount = 0;//记录裁剪之后的顶点数量,最大只能到4,类似于单条直线裁剪三角形，最多只能裁剪出一个四边形
 		for (int j = 0; j < 3; j++)//在near平面裁剪三角形，记录每条边的入点、出点和终点
 		{
-			double WeightB;//B点的权值
-			Point4 tmp;
-			int ret = clipEdge(parray[j], parray[(j + 1) % 3], tmp, WeightB);//裁剪边(只裁剪near平面)
+			double aWeightB;//新a点在B点的权值
+			double bWeightB;//新b点在B点的权值
+			Point4 tmpa,tmpb;
+			int ret = clipEdge(parray[j], parray[(j + 1) % 3], tmpa,tmpb,aWeightB,bWeightB);//裁剪边(只裁剪near平面)
 			if (ret == -1)//平凡拒绝
 			{
 				continue;//不处理本条边
 			}
 			if (ret == 1)//计算新的varying值
 			{
-				realPoint[effectivePointCount] = tmp;//入点
+				realPoint[effectivePointCount] = tmpa;//入点
 				realPoint[effectivePointCount + 1] = parray[(j + 1) % 3];//终点
 				for (int k = 0; k < CountOfVarying; k++)//设置新的varying
 				{
-					*(realVarying + effectivePointCount * CountOfVarying + k) = *(Varying + j * CountOfVarying + k) * (1 - WeightB) + *(Varying + (j + 1) % 3 * CountOfVarying + k) * WeightB;
+					*(realVarying + effectivePointCount * CountOfVarying + k) = *(Varying + j * CountOfVarying + k) * (1 - aWeightB) + *(Varying + (j + 1) % 3 * CountOfVarying + k) * aWeightB;
 				}
 				memcpy(realVarying + (effectivePointCount + 1) * CountOfVarying, Varying + (j + 1) % 3 * CountOfVarying, sizeof(double) * CountOfVarying);
 				effectivePointCount += 2;
 			}
 			else if (ret == 2)//计算新的varying值
 			{
-				realPoint[effectivePointCount] = tmp;//出点
+				realPoint[effectivePointCount] = tmpb;//出点
 				for (int k = 0; k < CountOfVarying; k++)//设置新的varying
 				{
-					*(realVarying + effectivePointCount * CountOfVarying + k) = *(Varying + j * CountOfVarying + k) * (1 - WeightB) + *(Varying + (j + 1) % 3 * CountOfVarying + k) * WeightB;
+					*(realVarying + effectivePointCount * CountOfVarying + k) = *(Varying + j * CountOfVarying + k) * (1 - bWeightB) + *(Varying + (j + 1) % 3 * CountOfVarying + k) * bWeightB;
 				}
 				effectivePointCount += 1;
+			}
+			else if (ret == 3)
+			{
+				realPoint[effectivePointCount] = tmpa;//入点
+				realPoint[effectivePointCount + 1] = tmpb;//终点
+				for (int k = 0; k < CountOfVarying; k++)//设置新的varying
+				{
+					*(realVarying + effectivePointCount * CountOfVarying + k) = *(Varying + j * CountOfVarying + k) * (1 - aWeightB) + *(Varying + (j + 1) % 3 * CountOfVarying + k) * aWeightB;
+					*(realVarying + (effectivePointCount+1) * CountOfVarying + k) = *(Varying + j * CountOfVarying + k) * (1 - bWeightB) + *(Varying + (j + 1) % 3 * CountOfVarying + k) * bWeightB;
+				}
+				effectivePointCount += 2;
 			}
 			else //平凡接受
 			{
@@ -259,7 +322,7 @@ void GraphicsLibrary::setVaryingCount(int count)
 	interpolationVarying = new double[count];
 	CountOfVarying = count;
 	Varying = new double[count * 3];
-	realVarying = new double[count * 4];
+	realVarying = new double[count * 9];
 }
 
 COLORREF GraphicsLibrary::texture2D(double x, double y)
@@ -297,6 +360,10 @@ void GraphicsLibrary::DrawTriangle(Point4* parray, double* varying)
 	for (int i=0;i<3;i++)
 	{
 		pArray[i] = parray[i];
+		if (pArray[i].value[3] <= 0)
+		{
+			printf("error");
+		}
 		pArray[i].value[0] = pArray[i].value[0] / pArray[i].value[3];//X,Y,Z按照齐次坐标规则正确还原，W暂时不还原，后面插值不用1/Z，改为用1/W插值
 		pArray[i].value[1] = pArray[i].value[1] / pArray[i].value[3];
 		pArray[i].value[2] = pArray[i].value[2] / pArray[i].value[3];//经过矩阵计算,W变成了原始点的-Z值
