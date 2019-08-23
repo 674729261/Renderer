@@ -182,7 +182,7 @@ int main()
 		b = -w * proportion / 2;
 		t = w * proportion / 2;
 		n = w;
-		f = w * 50;
+		f = w * 10;
 	}
 	else
 	{
@@ -192,7 +192,7 @@ int main()
 		b = -w / 2;
 		t = w / 2;
 		n = w;
-		f = w * 50;
+		f = w * 10;
 	}
 	Matrix4 pMatrix = Matrix4::PerspectiveProjection(l, r, b, t, n, f);
 	Matrix4 vpMatrix;

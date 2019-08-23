@@ -155,6 +155,7 @@ int GraphicsLibrary::clipEdge(Point4& A, Point4& B, Point4& tmpA, Point4& tmpB, 
 	}
 	double ta = 0.0, tb = 1.0, t;//t表示B点的占比，初始情况下ta中B的权值为0，tb中B的权值为1
 	
+	//near平面
 	if ((a & 0x01) == 1)//A点在外面
 	{
 		t = (A.value[2] + A.value[3]) / (A.value[2] + A.value[3] - B.value[2] - B.value[3]);//求出t的比例系数(t==0时和A点重合,也就是B点的权值为0),near平面裁剪
@@ -166,13 +167,13 @@ int GraphicsLibrary::clipEdge(Point4& A, Point4& B, Point4& tmpA, Point4& tmpB, 
 		tb = min(tb, t);
 	}
 	
-
+	//far平面
 	if (((a >> 1) & 0x01) == 1)//裁剪A点
 	{
 		t = (A.value[3] - A.value[2]) / (B.value[2] - A.value[2] + A.value[3] - B.value[3]);//far平面裁剪
 		ta = max(ta, t);//因为随着裁剪的进行，a点可能越来越靠近B点，所以最靠近B点的那个裁剪结果就是我们最后想要的结果，即max(ta,t)
 	}
-	else//裁剪B点
+	else if (((b>>1) & 0x01) == 1)//裁剪B点
 	{
 		t = (A.value[3] - A.value[2]) / (B.value[2] - A.value[2] + A.value[3] - B.value[3]);//far平面裁剪
 		tb = min(tb, t);
