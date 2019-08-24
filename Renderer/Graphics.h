@@ -68,10 +68,6 @@ private:
 	double* vboBuffer = NULL;//vob
 	int vboCount = 0;//顶点数量
 	int NumOfVertexVBO = 0;//每个顶点的顶点数量
-	double* Varying = NULL;//当前的Varying变量，经过插值之后会传递给片元着色器
-	double* resultVarying1 = NULL;//当前的Varying变量，经过插值之后会传递给片元着色器，这里是可能经过left right裁剪之后的varying
-	double* resultVarying2 = NULL;//当前的Varying变量，经过插值之后会传递给片元着色器，这里是可能经过bottom top裁剪之后的varying
-	double* resultVarying3 = NULL;//当前的Varying变量，经过插值之后会传递给片元着色器，这里是可能经过near far裁剪之后的varying
 	int CountOfVarying = 0;//Varying变量数量
 	std::list<EdgeTableItem>* NET = NULL;//新边表和ViewPortHeight大小一样
 	double* interpolationVarying = NULL;//当前线程在绘制当前顶点插值之后的varying，因为单线程，所以这里只需要一个就行了

@@ -124,10 +124,10 @@ void GraphicsLibrary::flush()
 //对边进行裁剪，这里只裁剪near平面，因为w分量>0时在栅格化的时候就处理了，和opengl还是有点不同，主要是我懒得修改栅格化的代码了
 //如果z/w<-1则需要对其进行裁剪,即z+w<0则需要裁剪
 //返回0表示平凡接受，返回-1表示本条边平凡拒绝,返回1表示有裁剪并且将A点挪到新点，2表示将B挪到新点,3表示AB都有移动
-int GraphicsLibrary::clipEdge(Point4& A, Point4& B, Point4& tmpA, Point4& tmpB, double& proportionA,double& proportionB)
+int GraphicsLibrary::clipEdge(Point4& A, Point4& B, Point4& tmpA, Point4& tmpB, double& proportionA, double& proportionB)
 {
-	int a= 0, b = 0;//对应位等于0表示接受，1表示拒绝
-	double aBC[6],bBC[6];//六个边界
+	int a = 0, b = 0;//对应位等于0表示接受，1表示拒绝
+	double aBC[6], bBC[6];//六个边界
 	aBC[0] = A.value[3] + A.value[0];//w+x left
 	aBC[1] = A.value[3] - A.value[0];//w-x right
 	aBC[2] = A.value[3] + A.value[1];//w+y bottom
@@ -141,7 +141,7 @@ int GraphicsLibrary::clipEdge(Point4& A, Point4& B, Point4& tmpA, Point4& tmpB, 
 	bBC[3] = B.value[3] - B.value[1];//w-y top
 	bBC[4] = B.value[3] + B.value[2];//w+z near
 	bBC[5] = B.value[3] - B.value[2];//w-z far
-	for (int i=0;i<6;i++)
+	for (int i = 0; i < 6; i++)
 	{
 		if (aBC[i] < 0)
 		{
@@ -152,11 +152,11 @@ int GraphicsLibrary::clipEdge(Point4& A, Point4& B, Point4& tmpA, Point4& tmpB, 
 			b = b | (1 << i);
 		}
 	}
-	if ((a|b)==0)//A被B平凡接受：A全部包含于B(A为B的子集)
+	if ((a | b) == 0)//A被B平凡接受：A全部包含于B(A为B的子集)
 	{
 		return 0;
 	}
-	if ((a&b)!=0)//A被B平凡拒绝：AB无交集
+	if ((a & b) != 0)//A被B平凡拒绝：AB无交集
 	{
 		return -1;
 	}
@@ -165,7 +165,7 @@ int GraphicsLibrary::clipEdge(Point4& A, Point4& B, Point4& tmpA, Point4& tmpB, 
 	{
 		if (aBC[i] < 0)//移动A点到CVV内部
 		{
-			t = aBC[i] / (aBC[i]-bBC[i]);
+			t = aBC[i] / (aBC[i] - bBC[i]);
 			ta = max(ta, t);
 		}
 		else if (bBC[i] < 0)
@@ -181,7 +181,7 @@ int GraphicsLibrary::clipEdge(Point4& A, Point4& B, Point4& tmpA, Point4& tmpB, 
 
 	proportionA = ta;
 	proportionB = tb;
-	int result=0;
+	int result = 0;
 	if (a != 0)//A点有修改
 	{
 		tmpA.value[0] = A.value[0] + (B.value[0] - A.value[0]) * ta;//计算新交点
@@ -200,7 +200,7 @@ int GraphicsLibrary::clipEdge(Point4& A, Point4& B, Point4& tmpA, Point4& tmpB, 
 		{
 			result = 2;
 		}
-		else 
+		else
 		{
 			result = 3;
 		}
@@ -307,7 +307,7 @@ int GraphicsLibrary::clipEdgeByParallelFace(Point4& A, Point4& B, Point4& tmpA, 
 	}
 	return result;
 }
-void GraphicsLibrary::clipFaceByParallelFace(Point4* ps, int pCount, Point4* resultPoint, int& resultCount,double* varying,int countofvarying,double*resultvarying, int flag)
+void GraphicsLibrary::clipFaceByParallelFace(Point4* ps, int pCount, Point4* resultPoint, int& resultCount, double* varying, int countofvarying, double* resultvarying, int flag)
 {
 	int effectivePointCount = 0;//记录裁剪之后的顶点数量,最大只能到4,类似于单条直线裁剪三角形，最多只能裁剪出一个四边形
 	for (int j = 0; j < pCount; j++)//裁剪三角形的三条边，记录每条边的入点、出点和终点
@@ -358,7 +358,7 @@ void GraphicsLibrary::clipFaceByParallelFace(Point4* ps, int pCount, Point4* res
 			effectivePointCount += 1;
 		}
 	}
-	resultCount=effectivePointCount;
+	resultCount = effectivePointCount;
 }
 bool GraphicsLibrary::Draw()
 {
@@ -367,6 +367,10 @@ bool GraphicsLibrary::Draw()
 	Point4 resultPoint1[9];//经过裁剪之后的边，共三条
 	Point4 resultPoint2[9];//经过裁剪之后的边，共三条
 	Point4 resultPoint3[9];//经过裁剪之后的边，共三条
+	double* Varying = (double*)alloca(sizeof(double) * (size_t)CountOfVarying * 3);
+	double* resultVarying1 = (double*)alloca(sizeof(double) * CountOfVarying * 9);
+	double* resultVarying2 = (double*)alloca(sizeof(double) * (size_t)CountOfVarying * 9);
+	double* resultVarying3 = (double*)alloca(sizeof(double) * (size_t)CountOfVarying * 9);//这里是用于模拟动态数组的，如果用malloc还得使用free，会带来严重的效率降低
 	for (int i = 0; i < vboCount / 3; i++)//i表示三角形数量
 	{
 		for (int j = 0; j < 3; j++)//对三个点进行透视乘法
@@ -376,7 +380,7 @@ bool GraphicsLibrary::Draw()
 
 		//下面使用逐面裁剪，类似于Sutherland-Hodgman，被裁剪的多边形可以是任意多边形，裁剪窗口必须是凸多边形，对应到3D就是必须为凸多面体，CVV是凸多面体
 		int effectivePointCount = 3;//记录裁剪之后的顶点数量,最大只能到4,类似于单条直线裁剪三角形，最多只能裁剪出一个四边形
-		clipFaceByParallelFace(parray, effectivePointCount,resultPoint1, effectivePointCount,Varying,CountOfVarying, resultVarying1,1);//使用left right平面裁剪多边形
+		clipFaceByParallelFace(parray, effectivePointCount, resultPoint1, effectivePointCount, Varying, CountOfVarying, resultVarying1, 1);//使用left right平面裁剪多边形
 		if (effectivePointCount == 0)
 		{
 			continue;//三条边都被平凡拒绝，不用绘制了
@@ -391,17 +395,17 @@ bool GraphicsLibrary::Draw()
 		{
 			continue;//三条边都被平凡拒绝，不用绘制了
 		}
-		
 
 
-		for (int k = 0; k < effectivePointCount-2; k++)//绘制被裁剪出来的n-2个三角形，n个顶点会围城一个n边形，可以分解成n-2个三角形
+
+		for (int k = 0; k < effectivePointCount - 2; k++)//绘制被裁剪出来的n-2个三角形，n个顶点会围城一个n边形，可以分解成n-2个三角形
 		{
 			if (k != 0)//将RP[0]挪到RP[1]，然后绘制RP[1],RP[2],RP[3]这个三角形
 			{
-				resultPoint3[k] = resultPoint3[k-1];
-				memcpy(resultVarying3 + (size_t)k * CountOfVarying, resultVarying3 + ((size_t)k-1) * CountOfVarying, sizeof(double) * CountOfVarying);
+				resultPoint3[k] = resultPoint3[k - 1];
+				memcpy(resultVarying3 + (size_t)k * CountOfVarying, resultVarying3 + ((size_t)k - 1) * CountOfVarying, sizeof(double) * CountOfVarying);
 			}
-			DrawTriangle(resultPoint3 + k, resultVarying3 + (size_t)k*CountOfVarying);
+			DrawTriangle(resultPoint3 + k, resultVarying3 + (size_t)k * CountOfVarying);
 		}
 	}
 	return true;
@@ -426,32 +430,12 @@ void GraphicsLibrary::Swap()
 
 void GraphicsLibrary::setVaryingCount(int count)
 {
-	if (Varying != NULL)
-	{
-		delete[] Varying;
-	}
-	if (resultVarying1 != NULL)
-	{
-		delete[] Varying;
-	}
-	if (resultVarying2 != NULL)
-	{
-		delete[] Varying;
-	}
-	if (resultVarying3 != NULL)
-	{
-		delete[] Varying;
-	}
 	if (interpolationVarying != NULL)
 	{
 		delete[] interpolationVarying;
 	}
 	interpolationVarying = new double[count];
 	CountOfVarying = count;
-	Varying = new double[(size_t)count * 3];
-	resultVarying1 = new double[(size_t)count * 9];
-	resultVarying2 = new double[(size_t)count * 9];
-	resultVarying3 = new double[(size_t)count * 9];
 }
 
 COLORREF GraphicsLibrary::texture2D(double x, double y)
@@ -486,7 +470,7 @@ bool SortEdgeTableItem(EdgeTableItem const& E1, EdgeTableItem const& E2)//将边
 void GraphicsLibrary::DrawTriangle(Point4* parray, double* varying)
 {
 	Point4 pArray[3];
-	for (int i=0;i<3;i++)
+	for (int i = 0; i < 3; i++)
 	{
 		pArray[i] = parray[i];
 		if (pArray[i].value[3] <= 0)
@@ -909,7 +893,7 @@ void GraphicsLibrary::Interpolation(Point4 pArray[3], double x, double y, double
 		Weight[0] = tmp2;
 		break;
 	default:break;
-}
+	}
 }
 #endif // _INTERPOLATRIONBYSQUARE
 
@@ -924,18 +908,18 @@ GraphicsLibrary::~GraphicsLibrary()
 	if (textureBuffer != NULL)
 	{
 		delete[] textureBuffer;
-	}
+}
 	if (vboBuffer != NULL)
 	{
 		delete[] vboBuffer;
 	}
-	if (Varying != NULL)
-	{
-		delete[] Varying;
-	}
 	if (NET != NULL)
 	{
 		delete[] NET;
+	}
+	if (interpolationVarying != NULL)
+	{
+		delete[] interpolationVarying;
 	}
 	if (interpolationVarying != NULL)
 	{
