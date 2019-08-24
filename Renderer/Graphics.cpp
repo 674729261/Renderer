@@ -207,80 +207,201 @@ int GraphicsLibrary::clipEdge(Point4& A, Point4& B, Point4& tmpA, Point4& tmpB, 
 	}
 	return result;
 }
+//对边进行裁剪，这里只裁剪near平面，因为w分量>0时在栅格化的时候就处理了，和opengl还是有点不同，主要是我懒得修改栅格化的代码了
+//如果z/w<-1则需要对其进行裁剪,即z+w<0则需要裁剪
+//返回-1表示本条边平凡拒绝,返回0表示平凡接受,返回1表示有裁剪并且将A点挪到新点，2表示将B挪到新点,3表示AB都有移动
+int GraphicsLibrary::clipEdgeByParallelFace(Point4& A, Point4& B, Point4& tmpA, Point4& tmpB, double& proportionA, double& proportionB, int flag)
+{
+	int a = 0, b = 0;//对应位等于0表示接受，1表示拒绝
+	double aBC[2], bBC[2];//六个边界
+	switch (flag)
+	{
+	case 1:
+		aBC[0] = A.value[3] + A.value[0];//w+x left
+		aBC[1] = A.value[3] - A.value[0];//w-x right
 
+		bBC[0] = B.value[3] + B.value[0];//w+x left
+		bBC[1] = B.value[3] - B.value[0];//w-x right
+		break;
+	case 2:
+		aBC[0] = A.value[3] + A.value[1];//w+y bottom
+		aBC[1] = A.value[3] - A.value[1];//w-y top
+
+		bBC[0] = B.value[3] + B.value[1];//w+y bottom
+		bBC[1] = B.value[3] - B.value[1];//w-y top
+		break;
+	case 3:
+		aBC[0] = A.value[3] + A.value[2];//w+z near
+		aBC[1] = A.value[3] - A.value[2];//w-z far
+
+		bBC[0] = B.value[3] + B.value[2];//w+z near
+		bBC[1] = B.value[3] - B.value[2];//w-z far
+		break;
+	default:
+		return 0;//不对边裁剪
+	}
+
+	for (int i = 0; i < 2; i++)
+	{
+		if (aBC[i] < 0)
+		{
+			a = a | (1 << i);
+		}
+		if (bBC[i] < 0)
+		{
+			b = b | (1 << i);
+		}
+	}
+	if ((a | b) == 0)//A被B平凡接受：A全部包含于B(A为B的子集)
+	{
+		return 0;
+	}
+	if ((a & b) != 0)//A被B平凡拒绝：AB无交集
+	{
+		return -1;
+	}
+	double ta = 0.0, tb = 1.0, t;//t表示B点的占比，初始情况下ta中B的权值为0，tb中B的权值为1
+	for (int i = 0; i < 2; i++)
+	{
+		if (aBC[i] < 0)//移动A点到CVV内部
+		{
+			t = aBC[i] / (aBC[i] - bBC[i]);
+			ta = max(ta, t);
+		}
+		else if (bBC[i] < 0)
+		{
+			t = aBC[i] / (aBC[i] - bBC[i]);
+			tb = min(tb, t);
+		}
+		if (ta > tb)//经过多个边界裁剪之后，裁剪剩余的a点比b点更加靠近原始的B点，也就是这个线段已经裁没了
+		{
+			return -1;//平凡拒绝
+		}
+	}
+
+	proportionA = ta;
+	proportionB = tb;
+	int result = 0;
+	if (a != 0)//A点有修改
+	{
+		tmpA.value[0] = A.value[0] + (B.value[0] - A.value[0]) * ta;//计算新交点
+		tmpA.value[1] = A.value[1] + (B.value[1] - A.value[1]) * ta;
+		tmpA.value[2] = A.value[2] + (B.value[2] - A.value[2]) * ta;
+		tmpA.value[3] = A.value[3] + (B.value[3] - A.value[3]) * ta;
+		result = 1;
+	}
+	if (b != 0)//B点有修改
+	{
+		tmpB.value[0] = A.value[0] + (B.value[0] - A.value[0]) * tb;//计算新交点
+		tmpB.value[1] = A.value[1] + (B.value[1] - A.value[1]) * tb;
+		tmpB.value[2] = A.value[2] + (B.value[2] - A.value[2]) * tb;
+		tmpB.value[3] = A.value[3] + (B.value[3] - A.value[3]) * tb;
+		if (result == 0)
+		{
+			result = 2;
+		}
+		else
+		{
+			result = 3;
+		}
+	}
+	return result;
+}
+void GraphicsLibrary::clipFaceByParallelFace(Point4* ps, int pCount, Point4* resultPoint, int& resultCount,double* varying,int countofvarying,double*resultvarying, int flag)
+{
+	int effectivePointCount = 0;//记录裁剪之后的顶点数量,最大只能到4,类似于单条直线裁剪三角形，最多只能裁剪出一个四边形
+	for (int j = 0; j < pCount; j++)//裁剪三角形的三条边，记录每条边的入点、出点和终点
+	{
+		double aWeightB;//新a点在B点的权值
+		double bWeightB;//新b点在B点的权值
+		Point4 tmpa, tmpb;
+		int ret = clipEdgeByParallelFace(ps[j], ps[(j + 1) % pCount], tmpa, tmpb, aWeightB, bWeightB, flag);//裁剪边(只裁剪near平面)
+		if (ret == -1)//平凡拒绝
+		{
+			continue;//不处理本条边
+		}
+		if (ret == 1)//计算新的varying值
+		{
+			resultPoint[effectivePointCount] = tmpa;//入点
+			resultPoint[effectivePointCount + 1] = ps[(j + 1) % pCount];//终点
+			for (int k = 0; k < countofvarying; k++)//设置新的varying
+			{
+				*(resultvarying + (size_t)effectivePointCount * countofvarying + k) = *(varying + (size_t)j * countofvarying + k) * (1 - aWeightB) + *(varying + ((size_t)j + 1) % pCount * countofvarying + k) * aWeightB;
+			}
+			memcpy(resultvarying + ((size_t)effectivePointCount + 1) * countofvarying, varying + ((size_t)j + 1) % pCount * countofvarying, sizeof(double) * countofvarying);
+			effectivePointCount += 2;
+		}
+		else if (ret == 2)//计算新的varying值
+		{
+			resultPoint[effectivePointCount] = tmpb;//出点
+			for (int k = 0; k < countofvarying; k++)//设置新的varying
+			{
+				*(resultvarying + (size_t)effectivePointCount * countofvarying + k) = *(varying + (size_t)j * countofvarying + k) * (1 - bWeightB) + *(varying + ((size_t)j + (size_t)1) % pCount * countofvarying + k) * bWeightB;
+			}
+			effectivePointCount += 1;
+		}
+		else if (ret == 3)
+		{
+			resultPoint[effectivePointCount] = tmpa;//入点
+			resultPoint[effectivePointCount + 1] = tmpb;//终点
+			for (int k = 0; k < countofvarying; k++)//设置新的varying
+			{
+				*(resultvarying + (size_t)effectivePointCount * countofvarying + k) = *(varying + (size_t)j * countofvarying + k) * (1 - aWeightB) + *(varying + ((size_t)j + 1) % pCount * countofvarying + k) * aWeightB;
+				*(resultvarying + ((size_t)effectivePointCount + 1) * countofvarying + k) = *(varying + (size_t)j * countofvarying + k) * (1 - bWeightB) + *(varying + ((size_t)j + 1) % pCount * countofvarying + k) * bWeightB;
+			}
+			effectivePointCount += 2;
+		}
+		else //平凡接受
+		{
+			resultPoint[effectivePointCount] = ps[(j + 1) % pCount];//记录终点
+			memcpy(resultvarying + (size_t)(effectivePointCount)* countofvarying, varying + ((size_t)j + 1) % pCount * countofvarying, sizeof(double) * countofvarying);
+			effectivePointCount += 1;
+		}
+	}
+	resultCount=effectivePointCount;
+}
 bool GraphicsLibrary::Draw()
 {
 	errmsg[0] = '\0';//清空错误信息
 	Point4 parray[3];//position Array
-	Point4 realPoint[9];//经过裁剪之后的边，共三条
+	Point4 resultPoint1[9];//经过裁剪之后的边，共三条
+	Point4 resultPoint2[9];//经过裁剪之后的边，共三条
+	Point4 resultPoint3[9];//经过裁剪之后的边，共三条
 	for (int i = 0; i < vboCount / 3; i++)//i表示三角形数量
 	{
 		for (int j = 0; j < 3; j++)//对三个点进行透视乘法
 		{
 			VertexShader(vboBuffer + ((size_t)i * 3 * NumOfVertexVBO + (size_t)j * NumOfVertexVBO), Varying + ((size_t)j * CountOfVarying), parray[j]);//对每个顶点调用顶点着色器
 		}
-		int effectivePointCount = 0;//记录裁剪之后的顶点数量,最大只能到4,类似于单条直线裁剪三角形，最多只能裁剪出一个四边形
-		for (int j = 0; j < 3; j++)//裁剪三角形的三条边，记录每条边的入点、出点和终点
+
+		//下面使用逐面裁剪，类似于Sutherland-Hodgman，被裁剪的多边形可以是任意多边形，裁剪窗口必须是凸多边形，对应到3D就是必须为凸多面体，CVV是凸多面体
+		int effectivePointCount = 3;//记录裁剪之后的顶点数量,最大只能到4,类似于单条直线裁剪三角形，最多只能裁剪出一个四边形
+		clipFaceByParallelFace(parray, effectivePointCount,resultPoint1, effectivePointCount,Varying,CountOfVarying, resultVarying1,1);//使用left right平面裁剪多边形
+		if (effectivePointCount == 0)
 		{
-			double aWeightB;//新a点在B点的权值
-			double bWeightB;//新b点在B点的权值
-			Point4 tmpa,tmpb;
-			int ret = clipEdge(parray[j], parray[(j + 1) % 3], tmpa,tmpb,aWeightB,bWeightB);//裁剪边(只裁剪near平面)
-			if (ret == -1)//平凡拒绝
-			{
-				continue;//不处理本条边
-			}
-			if (ret == 1)//计算新的varying值
-			{
-				realPoint[effectivePointCount] = tmpa;//入点
-				realPoint[effectivePointCount + 1] = parray[(j + 1) % 3];//终点
-				for (int k = 0; k < CountOfVarying; k++)//设置新的varying
-				{
-					*(realVarying + (size_t)effectivePointCount * CountOfVarying + k) = *(Varying + (size_t)j * CountOfVarying + k) * (1 - aWeightB) + *(Varying + ((size_t)j + 1) % 3 * CountOfVarying + k) * aWeightB;
-				}
-				memcpy(realVarying + ((size_t)effectivePointCount + 1) * CountOfVarying, Varying + ((size_t)j + 1) % 3 * CountOfVarying, sizeof(double) * CountOfVarying);
-				effectivePointCount += 2;
-			}
-			else if (ret == 2)//计算新的varying值
-			{
-				realPoint[effectivePointCount] = tmpb;//出点
-				for (int k = 0; k < CountOfVarying; k++)//设置新的varying
-				{
-					*(realVarying + (size_t)effectivePointCount * CountOfVarying + k) = *(Varying + (size_t)j * CountOfVarying + k) * (1 - bWeightB) + *(Varying + ((size_t)j + (size_t)1) % 3 * CountOfVarying + k) * bWeightB;
-				}
-				effectivePointCount += 1;
-			}
-			else if (ret == 3)
-			{
-				realPoint[effectivePointCount] = tmpa;//入点
-				realPoint[effectivePointCount + 1] = tmpb;//终点
-				for (int k = 0; k < CountOfVarying; k++)//设置新的varying
-				{
-					*(realVarying + (size_t)effectivePointCount * CountOfVarying + k) = *(Varying + (size_t)j * CountOfVarying + k) * (1 - aWeightB) + *(Varying + ((size_t)j + 1) % 3 * CountOfVarying + k) * aWeightB;
-					*(realVarying + ((size_t)effectivePointCount+1) * CountOfVarying + k) = *(Varying + (size_t)j * CountOfVarying + k) * (1 - bWeightB) + *(Varying + ((size_t)j + 1) % 3 * CountOfVarying + k) * bWeightB;
-				}
-				effectivePointCount += 2;
-			}
-			else //平凡接受
-			{
-				realPoint[effectivePointCount] = parray[(j + 1) % 3];//记录终点
-				memcpy(realVarying + (size_t)(effectivePointCount) * CountOfVarying, Varying + ((size_t)j + 1) % 3 * CountOfVarying, sizeof(double) * CountOfVarying);
-				effectivePointCount += 1;
-			}
+			continue;//三条边都被平凡拒绝，不用绘制了
 		}
+		clipFaceByParallelFace(resultPoint1, effectivePointCount, resultPoint2, effectivePointCount, resultVarying1, CountOfVarying, resultVarying2, 1);//使用left right裁剪
+		if (effectivePointCount == 0)
+		{
+			continue;//三条边都被平凡拒绝，不用绘制了
+		}
+		clipFaceByParallelFace(resultPoint2, effectivePointCount, resultPoint3, effectivePointCount, resultVarying2, CountOfVarying, resultVarying3, 1);//使用near far裁剪
 		if (effectivePointCount == 0)
 		{
 			continue;//三条边都被平凡拒绝，不用绘制了
 		}
 		
+
+
 		for (int k = 0; k < effectivePointCount-2; k++)//绘制被裁剪出来的n-2个三角形，n个顶点会围城一个n边形，可以分解成n-2个三角形
 		{
 			if (k != 0)//将RP[0]挪到RP[1]，然后绘制RP[1],RP[2],RP[3]这个三角形
 			{
-				realPoint[k] = realPoint[k-1];
-				memcpy(realVarying + (size_t)k * CountOfVarying, realVarying + ((size_t)k-1) * CountOfVarying, sizeof(double) * CountOfVarying);
+				resultPoint3[k] = resultPoint3[k-1];
+				memcpy(resultVarying3 + (size_t)k * CountOfVarying, resultVarying3 + ((size_t)k-1) * CountOfVarying, sizeof(double) * CountOfVarying);
 			}
-			DrawTriangle(realPoint + k, realVarying + (size_t)k*CountOfVarying);
+			DrawTriangle(resultPoint3 + k, resultVarying3 + (size_t)k*CountOfVarying);
 		}
 	}
 	return true;
@@ -309,7 +430,15 @@ void GraphicsLibrary::setVaryingCount(int count)
 	{
 		delete[] Varying;
 	}
-	if (realVarying != NULL)
+	if (resultVarying1 != NULL)
+	{
+		delete[] Varying;
+	}
+	if (resultVarying2 != NULL)
+	{
+		delete[] Varying;
+	}
+	if (resultVarying3 != NULL)
 	{
 		delete[] Varying;
 	}
@@ -320,7 +449,9 @@ void GraphicsLibrary::setVaryingCount(int count)
 	interpolationVarying = new double[count];
 	CountOfVarying = count;
 	Varying = new double[(size_t)count * 3];
-	realVarying = new double[(size_t)count * 9];
+	resultVarying1 = new double[(size_t)count * 9];
+	resultVarying2 = new double[(size_t)count * 9];
+	resultVarying3 = new double[(size_t)count * 9];
 }
 
 COLORREF GraphicsLibrary::texture2D(double x, double y)

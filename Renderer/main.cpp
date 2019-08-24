@@ -152,14 +152,14 @@ int main()
 	gl->FragmentShader = fs;//设置片元着色器程序
 
 	Vector3 eyePosition(0, 0, 9.5); //相机原点
-	if (!loadOBJ("mod/cube.obj", gl))//从文件加载模型
+	if (!loadOBJ("mod/cuboid.obj", gl))//从文件加载模型
 	{
 		sprintf(msg, "加载obj文件失败\n");
 		OutputDebugString(msg);//往调试器输出错误信息
 		delete gl;
 		return -1;
 	}
-	if (!gl->loadBMP("mod/teapot.bmp"))//加载BMP文件做纹理
+	if (!gl->loadBMP("mod/texture.bmp"))//加载BMP文件做纹理
 	{
 		OutputDebugString(gl->errmsg);//往调试器输出错误信息
 		delete gl;

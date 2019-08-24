@@ -69,10 +69,14 @@ private:
 	int vboCount = 0;//顶点数量
 	int NumOfVertexVBO = 0;//每个顶点的顶点数量
 	double* Varying = NULL;//当前的Varying变量，经过插值之后会传递给片元着色器
-	double* realVarying = NULL;//当前的Varying变量，经过插值之后会传递给片元着色器，这里是可能经过CVV裁剪之后的varying
+	double* resultVarying1 = NULL;//当前的Varying变量，经过插值之后会传递给片元着色器，这里是可能经过left right裁剪之后的varying
+	double* resultVarying2 = NULL;//当前的Varying变量，经过插值之后会传递给片元着色器，这里是可能经过bottom top裁剪之后的varying
+	double* resultVarying3 = NULL;//当前的Varying变量，经过插值之后会传递给片元着色器，这里是可能经过near far裁剪之后的varying
 	int CountOfVarying = 0;//Varying变量数量
 	std::list<EdgeTableItem>* NET = NULL;//新边表和ViewPortHeight大小一样
 	double* interpolationVarying = NULL;//当前线程在绘制当前顶点插值之后的varying，因为单线程，所以这里只需要一个就行了
 	int clipEdge(Point4& A, Point4& B, Point4& tmpA, Point4& tmpB, double& proportionA, double& proportionB);//对边进行裁剪(在四维空间中)
+	int clipEdgeByParallelFace(Point4& A, Point4& B, Point4& tmpA, Point4& tmpB, double& proportionA, double& proportionB,int flag);//使用一组平行平面裁剪边,flag为1，2，3时分别使用left right、bottom top、near far平面裁剪
+	void clipFaceByParallelFace(Point4* ps, int pCount, Point4* resultPoint, int& resultCount, double* varying, int countofvarying, double* resultvarying,int flag);//使用CVV对平面裁剪,resultCount 为裁剪之后的顶点数量
 };
 #endif // !_GRAPHICSMLIBRARY
