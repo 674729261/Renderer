@@ -385,12 +385,12 @@ bool GraphicsLibrary::Draw()
 		{
 			continue;//三条边都被平凡拒绝，不用绘制了
 		}
-		clipFaceByParallelFace(resultPoint1, effectivePointCount, resultPoint2, effectivePointCount, resultVarying1, CountOfVarying, resultVarying2, 1);//使用left right裁剪
+		clipFaceByParallelFace(resultPoint1, effectivePointCount, resultPoint2, effectivePointCount, resultVarying1, CountOfVarying, resultVarying2, 2);//使用left right裁剪
 		if (effectivePointCount == 0)
 		{
 			continue;//三条边都被平凡拒绝，不用绘制了
 		}
-		clipFaceByParallelFace(resultPoint2, effectivePointCount, resultPoint3, effectivePointCount, resultVarying2, CountOfVarying, resultVarying3, 1);//使用near far裁剪
+		clipFaceByParallelFace(resultPoint2, effectivePointCount, resultPoint3, effectivePointCount, resultVarying2, CountOfVarying, resultVarying3, 3);//使用near far裁剪
 		if (effectivePointCount == 0)
 		{
 			continue;//三条边都被平凡拒绝，不用绘制了
@@ -482,8 +482,8 @@ void GraphicsLibrary::DrawTriangle(Point4* parray, double* varying)
 		pArray[i].value[2] = pArray[i].value[2] / pArray[i].value[3];//经过矩阵计算,W变成了原始点的-Z值
 
 		//视口变换
-		pArray[i].value[0] = (pArray[i].value[0] + 1) / 2 * viewPortWidth;//将ccv空间转换到视口空间
-		pArray[i].value[1] = viewPortHeight - (pArray[i].value[1] + 1) / 2 * viewPortHeight;//在viewPort上下颠倒
+		pArray[i].value[0] = (pArray[i].value[0] + 1) / 2 * (viewPortWidth-1);//将ccv空间转换到视口空间
+		pArray[i].value[1] = (viewPortHeight-1) - (pArray[i].value[1] + 1) / 2 * (viewPortHeight-1);//在viewPort上下颠倒
 	}
 	/*
 			判断三角形的面积和方向
@@ -531,13 +531,6 @@ void GraphicsLibrary::DrawTriangle(Point4* parray, double* varying)
 		}
 	}
 
-	if (Max < 0 || Min >= (int)viewPortHeight)//三角形不在扫描线范围之内，直接忽略
-	{
-		return;
-	}
-
-	Min = max(0, Min);//记录扫描线最小值
-	Max = min(Max, (int)viewPortHeight - 1);//记录扫描线最大值
 	std::list<EdgeTableItem> AET;//活性边表
 	for (unsigned int i = 0; i < Count; i++)//对每个顶点进行扫描并添加到NET中
 	{
@@ -550,14 +543,7 @@ void GraphicsLibrary::DrawTriangle(Point4* parray, double* varying)
 				if (pArray[(i + Count - 1) % Count].value[1] > 0)//这条线可能需要绘制
 				{
 					double dx = (pArray[(i + Count) % Count].value[0] - pArray[(i + Count - 1) % Count].value[0]) / (pArray[(i + Count) % Count].value[1] - pArray[(i + Count - 1) % Count].value[1]);
-					if (pArray[(i + Count) % Count].value[1] < 0)//从0扫描线开始记录，忽略掉小于0的那些扫描线
-					{
-						NET[0].push_back(EdgeTableItem(pArray[(i + Count) % Count].value[0] + dx * (0 - pArray[(i + Count) % Count].value[1]), dx, pArray[(i + Count - 1) % Count].value[1]));
-					}
-					else
-					{
-						NET[(int)pArray[(i + Count) % Count].value[1]].push_back(EdgeTableItem(pArray[(i + Count) % Count].value[0], dx, pArray[(i + Count - 1) % Count].value[1]));
-					}
+					NET[(int)pArray[(i + Count) % Count].value[1]].push_back(EdgeTableItem(pArray[(i + Count) % Count].value[0], dx, pArray[(i + Count - 1) % Count].value[1]));
 				}
 			}
 		}
@@ -569,14 +555,7 @@ void GraphicsLibrary::DrawTriangle(Point4* parray, double* varying)
 				if (pArray[(i + Count + 1) % Count].value[1] > 0)//这条线可能需要绘制
 				{
 					double dx = (pArray[(i + Count) % Count].value[0] - pArray[(i + Count + 1) % Count].value[0]) / (pArray[(i + Count) % Count].value[1] - pArray[(i + Count + 1) % Count].value[1]);
-					if (pArray[(i + Count) % Count].value[1] < 0)//从0扫描线开始记录，忽略掉小于0的那些扫描线
-					{
-						NET[0].push_back(EdgeTableItem(pArray[(i + Count) % Count].value[0] + dx * (0 - pArray[(i + Count) % Count].value[1]), dx, pArray[(i + Count + 1) % Count].value[1]));
-					}
-					else
-					{
-						NET[(int)pArray[(i + Count) % Count].value[1]].push_back(EdgeTableItem(pArray[(i + Count) % Count].value[0], dx, pArray[(i + Count + 1) % Count].value[1]));
-					}
+					NET[(int)pArray[(i + Count) % Count].value[1]].push_back(EdgeTableItem(pArray[(i + Count) % Count].value[0], dx, pArray[(i + Count + 1) % Count].value[1]));
 				}
 			}
 		}
@@ -598,16 +577,8 @@ void GraphicsLibrary::DrawTriangle(Point4* parray, double* varying)
 				if (pArray[(i + Count - 1) % Count].value[1] > 0)//这条线可能需要绘制
 				{
 					double dx = (pArray[(i + Count) % Count].value[0] - pArray[(i + Count - 1) % Count].value[0]) / (pArray[(i + Count) % Count].value[1] - pArray[(i + Count - 1) % Count].value[1]);
-					if (pArray[(i + Count) % Count].value[1] < 0)//从0扫描线开始记录，忽略掉小于0的那些扫描线
-					{
-						NET[0].push_back(EdgeTableItem(pArray[(i + Count) % Count].value[0] + dx * (0 - pArray[(i + Count) % Count].value[1]), dx, pArray[(i + Count - 1) % Count].value[1]));
-						NET[0].sort(SortEdgeTableItem);//本扫描线有两个边表，需要排序
-					}
-					else
-					{
-						NET[(int)pArray[(i + Count) % Count].value[1]].push_back(EdgeTableItem(pArray[(i + Count) % Count].value[0], dx, pArray[(i + Count - 1) % Count].value[1]));
-						NET[(int)pArray[(i + Count) % Count].value[1]].sort(SortEdgeTableItem);//本扫描线有两个边表，需要排序
-					}
+					NET[(int)pArray[(i + Count) % Count].value[1]].push_back(EdgeTableItem(pArray[(i + Count) % Count].value[0], dx, pArray[(i + Count - 1) % Count].value[1]));
+					NET[(int)pArray[(i + Count) % Count].value[1]].sort(SortEdgeTableItem);//本扫描线有两个边表，需要排序
 				}
 			}
 		}
@@ -619,14 +590,7 @@ void GraphicsLibrary::DrawTriangle(Point4* parray, double* varying)
 				if (pArray[(i + Count + 1) % Count].value[1] > 0)//这条线可能需要绘制
 				{
 					double dx = (pArray[(i + Count) % Count].value[0] - pArray[(i + Count + 1) % Count].value[0]) / (pArray[(i + Count) % Count].value[1] - pArray[(i + Count + 1) % Count].value[1]);
-					if (pArray[(i + Count) % Count].value[1] < 0)//从0扫描线开始记录，忽略掉小于0的那些扫描线
-					{
-						NET[0].push_back(EdgeTableItem(pArray[(i + Count) % Count].value[0] + dx * (0 - pArray[(i + Count) % Count].value[1]), dx, pArray[(i + Count + 1) % Count].value[1]));
-					}
-					else
-					{
-						NET[(int)pArray[(i + Count) % Count].value[1]].push_back(EdgeTableItem(pArray[(i + Count) % Count].value[0], dx, pArray[(i + Count + 1) % Count].value[1]));
-					}
+					NET[(int)pArray[(i + Count) % Count].value[1]].push_back(EdgeTableItem(pArray[(i + Count) % Count].value[0], dx, pArray[(i + Count + 1) % Count].value[1]));
 				}
 			}
 		}
@@ -643,35 +607,14 @@ void GraphicsLibrary::DrawTriangle(Point4* parray, double* varying)
 				if (pArray[(i + Count - 1) % Count].value[1] > 0)//这条线可能需要绘制
 				{
 					double dx1 = (pArray[(i + Count) % Count].value[0] - pArray[(i + Count - 1) % Count].value[0]) / (pArray[(i + Count) % Count].value[1] - pArray[(i + Count - 1) % Count].value[1]);
-					if (pArray[(i + Count) % Count].value[1] < 0)//从0扫描线开始记录，忽略掉小于0的那些扫描线
-					{
-						NET[0].push_back(EdgeTableItem(pArray[(i + Count) % Count].value[0] + dx1 * (0 - pArray[(i + Count) % Count].value[1]), dx1, pArray[(i + Count - 1) % Count].value[1]));//记录i-1
-					}
-					else
-					{
-						NET[(int)pArray[(i + Count) % Count].value[1]].push_back(EdgeTableItem(pArray[(i + Count) % Count].value[0], dx1, pArray[(i + Count - 1) % Count].value[1]));//记录i-1
-					}
+					NET[(int)pArray[(i + Count) % Count].value[1]].push_back(EdgeTableItem(pArray[(i + Count) % Count].value[0], dx1, pArray[(i + Count - 1) % Count].value[1]));//记录i-1
 				}
 				if (pArray[(i + Count + 1) % Count].value[1] > 0)//这条线可能需要绘制
 				{
 					double dx2 = (pArray[(i + Count) % Count].value[0] - pArray[(i + Count + 1) % Count].value[0]) / (pArray[(i + Count) % Count].value[1] - pArray[(i + Count + 1) % Count].value[1]);
-					if (pArray[(i + Count) % Count].value[1] < 0)//从0扫描线开始记录，忽略掉小于0的那些扫描线
-					{
-						NET[0].push_back(EdgeTableItem(pArray[(i + Count) % Count].value[0] + dx2 * (0 - pArray[(i + Count) % Count].value[1]), dx2, pArray[(i + Count + 1) % Count].value[1]));//记录i+1
-					}
-					else
-					{
-						NET[(int)pArray[(i + Count) % Count].value[1]].push_back(EdgeTableItem(pArray[(i + Count) % Count].value[0], dx2, pArray[(i + Count + 1) % Count].value[1]));//记录i+1
-					}
+					NET[(int)pArray[(i + Count) % Count].value[1]].push_back(EdgeTableItem(pArray[(i + Count) % Count].value[0], dx2, pArray[(i + Count + 1) % Count].value[1]));//记录i+1
 				}
-				if (pArray[(i + Count) % Count].value[1] < 0)//从0扫描线开始记录，忽略掉小于0的那些扫描线
-				{
-					NET[0].sort(SortEdgeTableItem);//本扫描线有两个边表，需要排序
-				}
-				else
-				{
-					NET[(int)pArray[(i + Count) % Count].value[1]].sort(SortEdgeTableItem);//本扫描线有两个边表，需要排序
-				}
+				NET[(int)pArray[(i + Count) % Count].value[1]].sort(SortEdgeTableItem);//本扫描线有两个边表，需要排序
 			}
 		}
 		//共享顶点pArray[(i+Count)%Count]的两条边都和扫描线重合
@@ -711,7 +654,7 @@ void GraphicsLibrary::DrawTriangle(Point4* parray, double* varying)
 				else
 				{
 					e = it;
-					for (unsigned int x = max((int)s->x, 0); x < min(e->x, viewPortWidth); x++)
+					for (unsigned int x = s->x; x < e->x; x++)
 					{
 						double Weight[3] = { 0,0,0 };
 						double Weight1[3] = { 0,0,0 };
@@ -773,9 +716,6 @@ W1=S1/S,W2=S2/S,W3=S3/S
 下面这个是我自己推算的，不知道是不是正确的:
 如果P P1 P2这个三角形和三角形P0,P1,P2有相交部分，面积取正，否则取负
 */
-//使用sse加速,一次插值4个点
-#define _INTERPOLATRIONBYSQUARE //使用面积插值，没定义本宏的话使用直线求交点的方式插值，对比一下速度，用面积插值可用SSE优化
-#ifdef _INTERPOLATRIONBYSQUARE
 void GraphicsLibrary::Interpolation(Point4 ps[3], double x, double y, double Weight[3], double Square)
 {
 	//使用有向面积计算重心坐标插值
@@ -795,109 +735,6 @@ void GraphicsLibrary::Interpolation(Point4 ps[3], double x, double y, double Wei
 	Weight[1] = s1 / Square;
 	Weight[2] = s2 / Square;
 }
-#else
-void GraphicsLibrary::Interpolation(Point4 pArray[3], double x, double y, double Weight[3])
-{
-	/*
-	两点式：
-	  x-X1      y-Y1
-	------- =  -------
-	 X2-X1      Y2-Y1
-	 转化为一般式:
-	 Ax+By+C=0
-	 Ax+By=-C
-	 A=Y2-Y1
-	 B=X1-X2
-	 -C=X1*Y2-X2*Y1
-	*/
-	double A11, A12, B1, A21, A22, B2;
-	A21 = pArray[0].value[1] - y;
-	A22 = x - pArray[0].value[0];
-	if (A21 == 0 && A22 == 0)//点(x,y)和P0重合
-	{
-		Weight[0] = 1;
-		return;//如果(x,y)和P1或者P2重合是不影响计算的
-	}
-
-	A11 = pArray[2].value[1] - pArray[1].value[1];
-	A12 = pArray[1].value[0] - pArray[2].value[0];
-	//-----------
-	int status = 0;//记录交换P0位置的状态
-	if (A11 * A22 - A21 * A12 == 0)//如果P0 (x,y)直线和P1 P2直线平行，则改用(x,y) P2和P0 P1求交
-	{
-		status = 1;
-		A11 = pArray[0].value[1] - pArray[1].value[1];
-		A12 = pArray[1].value[0] - pArray[0].value[0];
-
-		A21 = pArray[2].value[1] - y;
-		A22 = x - pArray[2].value[0];
-		if (A11 * A22 - A21 * A12 == 0)//交换之后如果再次平行则，则改用(x,y) P1和P0 P2求交
-		{
-			status = 2;
-			A11 = pArray[2].value[1] - pArray[0].value[1];
-			A12 = pArray[0].value[0] - pArray[2].value[0];
-
-
-			A21 = pArray[1].value[1] - y;
-			A22 = x - pArray[1].value[0];
-		}
-	}
-	//------------
-	B2 = pArray[0].value[1] * x - y * pArray[0].value[0];//得到P (x,y)直线方程(这个P就是指上面的和(x,y)连成直线的那个点)
-	B1 = pArray[2].value[1] * pArray[1].value[0] - pArray[1].value[1] * pArray[2].value[0];//得到Pa Pb直线方程(Pa Pb指另外两个点)
-
-	double X = (B1 * A22 - A12 * B2) / (A11 * A22 - A12 * A21);
-	double Y = (B2 * A11 - A21 * B1) / (A11 * A22 - A12 * A21);
-
-	double W0, W1, W2, Wt;
-	/*
-	求出(X,Y)对应的插值
-	*/
-	if (pArray[2].value[1] - pArray[1].value[1] != 0)
-	{
-		W1 = (pArray[2].value[1] - Y) / (pArray[2].value[1] - pArray[1].value[1]);//P[2]权重 weight
-		W2 = (Y - pArray[1].value[1]) / (pArray[2].value[1] - pArray[1].value[1]);//P[2]权重 weight
-	}
-	else
-	{
-		W1 = (pArray[2].value[0] - X) / (pArray[2].value[0] - pArray[1].value[0]);//P[2]权重 weight
-		W2 = (X - pArray[1].value[0]) / (pArray[2].value[0] - pArray[1].value[0]);//P[2]权重 weight
-	}
-	if (pArray[0].value[1] - Y != 0)
-	{
-		Wt = (y - pArray[0].value[1]) / (Y - pArray[0].value[1]);
-		W0 = (Y - y) / (Y - pArray[0].value[1]);
-	}
-	else
-	{
-		Wt = (x - pArray[0].value[0]) / (X - pArray[0].value[0]);
-		W0 = (X - x) / (X - pArray[0].value[0]);
-	}
-	Weight[0] = W0;
-	Weight[1] = W1 * Wt;
-	Weight[2] = W2 * Wt;
-	double tmp1, tmp2;
-	switch (status)//因为在上面交换了PO,P1,P2的位置，所以权重也要相应的交换位置
-	{
-	case 0:break;
-	case 1:
-		tmp1 = Weight[0];
-		Weight[0] = Weight[2];
-		Weight[2] = tmp1;
-		break;
-	case 2:
-		tmp1 = Weight[1];
-		tmp2 = Weight[2];
-		Weight[1] = Weight[0];
-		Weight[2] = tmp1;
-		Weight[0] = tmp2;
-		break;
-	default:break;
-	}
-}
-#endif // _INTERPOLATRIONBYSQUARE
-
-
 
 GraphicsLibrary::~GraphicsLibrary()
 {
@@ -908,7 +745,7 @@ GraphicsLibrary::~GraphicsLibrary()
 	if (textureBuffer != NULL)
 	{
 		delete[] textureBuffer;
-}
+	}
 	if (vboBuffer != NULL)
 	{
 		delete[] vboBuffer;
