@@ -631,7 +631,7 @@ void GraphicsLibrary::DrawTriangle(Point4* parray, double* varying)
 						{
 							continue;//放弃本像素
 						}
-						if (DepthBuffer[scanLine * ScreenWidth + x] > depth)//深度测试,测试通过的像素才计算插值 
+						if (DepthBuffer[scanLine * viewPortWidth + x] > depth)//深度测试,测试通过的像素才计算插值 
 						{
 							/*
 							 普通线性插值计算出(j,i)的值:v=Weight[0]*v1+Weight[1]*v2+Weight[2]*v3
@@ -652,7 +652,7 @@ void GraphicsLibrary::DrawTriangle(Point4* parray, double* varying)
 
 							//因为(x,scanline)是视口坐标，所以需要加上一个(viewPortX,viewPortY)的偏移
 							fast_putpixel(x + viewPortX, scanLine + (ScreenHeight - viewPortY - viewPortHeight), c);//填充颜色
-							DepthBuffer[scanLine * ScreenWidth + x] = depth;//更新深度信息
+							DepthBuffer[scanLine * viewPortWidth + x] = depth;//更新深度信息
 						}
 					}
 
