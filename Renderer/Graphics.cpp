@@ -368,7 +368,7 @@ bool GraphicsLibrary::Draw()
 	Point4 resultPoint2[9];//经过裁剪之后的边，共三条
 	Point4 resultPoint3[9];//经过裁剪之后的边，共三条
 	double* Varying = (double*)alloca(sizeof(double) * (size_t)CountOfVarying * 3);
-	double* resultVarying1 = (double*)alloca(sizeof(double) * CountOfVarying * 9);
+	double* resultVarying1 = (double*)alloca(sizeof(double) * (size_t)CountOfVarying * 9);
 	double* resultVarying2 = (double*)alloca(sizeof(double) * (size_t)CountOfVarying * 9);
 	double* resultVarying3 = (double*)alloca(sizeof(double) * (size_t)CountOfVarying * 9);//这里是用于模拟动态数组的，如果用malloc还得使用free，会带来严重的效率降低
 	for (int i = 0; i < vboCount / 3; i++)//i表示三角形数量
