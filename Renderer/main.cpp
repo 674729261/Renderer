@@ -236,8 +236,8 @@ int main()
 				{
 					MX_e = m.x;
 					MY_e = m.y;
-					angleA += (double)(MX_e - MX_s) / width * 180;//采用累加方式记录鼠标总偏移量
-					angleB += (double)(MY_e - MY_s) / height * 180;
+					angleA += ((double)MX_e - (double)MX_s) / width * 180;//采用累加方式记录鼠标总偏移量
+					angleB += ((double)MY_e - (double)MY_s) / height * 180;
 					MX_s = MX_e;
 					MY_s = MY_e;
 					isDraw = true;//需要绘制
