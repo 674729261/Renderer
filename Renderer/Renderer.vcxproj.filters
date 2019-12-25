@@ -15,9 +15,6 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="EdgeTableItem.cpp">
-      <Filter>源文件</Filter>
-    </ClCompile>
     <ClCompile Include="Graphics.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
@@ -51,11 +48,11 @@
     <ClCompile Include="Vector4.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
+    <ClCompile Include="Edge.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="EdgeTableItem.h">
-      <Filter>头文件</Filter>
-    </ClInclude>
     <ClInclude Include="Graphics.h">
       <Filter>头文件</Filter>
     </ClInclude>
@@ -84,6 +81,9 @@
       <Filter>头文件</Filter>
     </ClInclude>
     <ClInclude Include="Vector4.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="Edge.h">
       <Filter>头文件</Filter>
     </ClInclude>
   </ItemGroup>

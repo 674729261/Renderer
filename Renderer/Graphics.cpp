@@ -6,48 +6,9 @@
 #include <algorithm>
 #include <intrin.h> 
 #pragma warning(disable:4996)
-bool GraphicsLibrary::setViewPort(int x, int y, int w, int h)
-{
-	if (x < 0 || y < 0)
-	{
-		sprintf_s(errmsg, sizeof(errmsg), "视口起始坐标小于0");
-		return false;
-	}
-	if (w < 0 || h < 0)
-	{
-		sprintf_s(errmsg, sizeof(errmsg), "视口宽高小于0");
-		return false;
-	}
-	if (w < 0 || h < 0)
-	{
-		sprintf_s(errmsg, sizeof(errmsg), "视口宽高小于0");
-		return false;
-	}
-	if ((x + w) > (int)ScreenWidth || (y + h) > (int)ScreenHeight)
-	{
-		sprintf_s(errmsg, sizeof(errmsg), "视口设置范围超过屏幕范围");
-		return false;
-	}
-	if (DepthBuffer != NULL)
-	{
-		delete[] DepthBuffer;
-	}
-	if (NET != NULL)
-	{
-		delete[] NET;
-	}
-	DepthBuffer = new double[(size_t)w * h];
-	viewPortX = x;
-	viewPortY = y;
-	viewPortWidth = w;
-	viewPortHeight = h;
-	NET = new std::list<EdgeTableItem>[viewPortHeight];
-	return true;
-}
 
 GraphicsLibrary::GraphicsLibrary(unsigned int w, unsigned int h) :ScreenWidth(w), ScreenHeight(h)
 {
-	setViewPort(0, 0, w, h);
 	initgraph(w, h);
 	BeginBatchDraw();
 	g_pBuf = GetImageBuffer(NULL);
@@ -56,6 +17,8 @@ GraphicsLibrary::GraphicsLibrary(unsigned int w, unsigned int h) :ScreenWidth(w)
 	TextureHeight = 0;
 	TextureWidth = 0;
 	vboBuffer = NULL;
+	Z_Buffer = new double[(size_t)w * h];
+	NET = new std::list<Edge>[ScreenHeight];
 }
 // 快速画点函数,复制于官网教程https://codeabc.cn/yangw/post/the-principle-of-quick-drawing-points
 void GraphicsLibrary::fast_putpixel(int x, int y, COLORREF c)
@@ -418,8 +381,8 @@ void GraphicsLibrary::clear()
 
 void GraphicsLibrary::clearDepth(double v)
 {
-	std::fill(DepthBuffer, DepthBuffer + ((size_t)viewPortWidth * viewPortHeight), v);
-	//memset(DepthBuffer, 0x7f, sizeof(double)*Width*Height);//用0x7f作为memset能搞定的极大值，memset应该有优化，比如调用cpu的特殊指令可以在较短的周期内赋值
+	std::fill(Z_Buffer, Z_Buffer + ((size_t)ScreenWidth * ScreenHeight), v);
+	//memset(Z_Buffer, 0x7f, sizeof(double)*Width*Height);//用0x7f作为memset能搞定的极大值，memset应该有优化，比如调用cpu的特殊指令可以在较短的周期内赋值
 }
 
 void GraphicsLibrary::Swap()
@@ -455,7 +418,7 @@ COLORREF GraphicsLibrary::texture2D(double x, double y)
 	}
 }
 //边表排序程序
-bool SortEdgeTableItem(EdgeTableItem const& E1, EdgeTableItem const& E2)//将边表排序，按X增序排序，如果X一样，则按照dx增序排序
+bool SortEdge(Edge const& E1, Edge const& E2)//将边表排序，按X增序排序，如果X一样，则按照dx增序排序
 {
 	if (E1.x != E2.x)
 	{
@@ -467,31 +430,30 @@ bool SortEdgeTableItem(EdgeTableItem const& E1, EdgeTableItem const& E2)//将边
 	}
 }
 //本函数中插值计算都是采用double
+//本函数中插值计算都是采用double
 void GraphicsLibrary::DrawTriangle(Point4* parray, double* varying)
 {
-	Point4 pArray[3];
+	Point4 ps[3];
 	for (int i = 0; i < 3; i++)
 	{
-		pArray[i] = parray[i];
-		if (pArray[i].value[3] <= 0)
+		ps[i] = parray[i];
+		if (ps[i].value[3] <= 0)
 		{
 			printf("error");
 		}
-		pArray[i].value[0] = pArray[i].value[0] / pArray[i].value[3];//X,Y,Z按照齐次坐标规则正确还原，W暂时不还原，后面插值不用1/Z，改为用1/W插值
-		pArray[i].value[1] = pArray[i].value[1] / pArray[i].value[3];
-		pArray[i].value[2] = pArray[i].value[2] / pArray[i].value[3];//经过矩阵计算,W变成了原始点的-Z值
+		ps[i].value[0] = ps[i].value[0] / ps[i].value[3];//X,Y,Z按照齐次坐标规则正确还原，W暂时不还原，后面插值不用1/Z，改为用1/W插值
+		ps[i].value[1] = ps[i].value[1] / ps[i].value[3];
+		ps[i].value[2] = ps[i].value[2] / ps[i].value[3];//经过矩阵计算,W变成了原始点的-Z值
 
 		//视口变换
-		pArray[i].value[0] = (pArray[i].value[0] + 1) / 2 * (viewPortWidth-1);//将ccv空间转换到视口空间
-		pArray[i].value[1] = (viewPortHeight-1) - (pArray[i].value[1] + 1) / 2 * (viewPortHeight-1);//在viewPort上下颠倒
+		ps[i].value[0] = (ps[i].value[0] + 1) / 2 * (ScreenWidth - 1);//将ccv空间转换到视口空间
+		ps[i].value[1] = (ScreenHeight - 1) - (ps[i].value[1] + 1) / 2 * (ScreenHeight - 1);//在viewPort上下颠倒
 	}
-	/*
-			判断三角形的面积和方向
-			*/
-	Vector3 a(pArray[0].value[0] - pArray[1].value[0], pArray[0].value[1] - pArray[1].value[1], 0);
-	Vector3 b(pArray[0].value[0] - pArray[2].value[0], pArray[0].value[1] - pArray[2].value[1], 0);
-	//使用有向面积判断顺逆时针和面积是否为0
-	double square = a.value[0] * b.value[1] - a.value[1] * b.value[0];
+	Vector3 ab(ps[1].value[0] - ps[0].value[0], ps[1].value[1] - ps[0].value[1], 0.0);//ps[0]->ps[1]
+	Vector3 bc(ps[2].value[0] - ps[1].value[0], ps[2].value[1] - ps[1].value[1], 0.0);//ps[1]->ps[2]
+	Vector3 ca(ps[0].value[0] - ps[2].value[0], ps[0].value[1] - ps[2].value[1], 0.0);//ps[2]->ps[0]
+	Vector3 ac(ps[2].value[0] - ps[0].value[0], ps[2].value[1] - ps[0].value[1], 0.0);//ps[2]->ps[0]
+	double square = ab.value[0] * ac.value[1] - ab.value[1] * ac.value[0];//得到三角形有向面积的2倍
 	if (square == 0)
 	{
 		return;
@@ -516,142 +478,101 @@ void GraphicsLibrary::DrawTriangle(Point4* parray, double* varying)
 
 
 
-	unsigned int Count = 3;//顶点数量
-	int Min = (int)pArray[0].value[1];
-	int Max = (int)pArray[0].value[1];
-	for (unsigned int i = 0; i < Count; i++)//记录扫描线最大最小值
+	int YMIN = (int)ps[0].value[1];
+	int YMAX = (int)ps[0].value[1];
+	//往NET中填充数据
+	for (int i = 0; i < 3; i++)//对每条边都会被判断两次，选择Y值小的点作为起点，Y值大的点作为终点，平行于扫描线的边被放弃,并且因为放弃了与扫描线平行的边，所以也不会出现dx等于无穷大的情况
 	{
-		if ((int)pArray[i].value[1] > Max)
+		double x, dx, ymax;
+		if (ps[i].value[1] > ps[(i + 1) % 3].value[1])//以pi+1作为起点,pi作为终点
 		{
-			Max = (int)pArray[i].value[1];
+			x = ps[(i + 1) % 3].value[0];
+			dx = (ps[(i + 1) % 3].value[0] - ps[i].value[0]) / (ps[(i + 1) % 3].value[1] - ps[i].value[1]);
+			ymax = ps[i].value[1];
+			NET[(int)ps[(i + 1) % 3].value[1]].push_back(Edge(x, dx, ymax));
 		}
-		if (Min > (int)pArray[i].value[1])
+		else if (ps[i].value[1] < ps[(i + 1) % 3].value[1])//以pi作为起点，pi+1作为终点
 		{
-			Min = (int)pArray[i].value[1];
+			x = ps[i].value[0];
+			dx = (ps[(i + 1) % 3].value[0] - ps[i].value[0]) / (ps[(i + 1) % 3].value[1] - ps[i].value[1]);
+			ymax = ps[(i + 1) % 3].value[1];
+			NET[(int)ps[i].value[1]].push_back(Edge(x, dx, ymax));
 		}
+		else//平行于扫描线的边
+		{
+		}
+		YMIN = (int)min(ps[i].value[1], YMIN);//记录多边形的最小Y值
+		YMAX = (int)max(ps[i].value[1], YMAX);//记录多边形的最大Y值
 	}
-
-	std::list<EdgeTableItem> AET;//活性边表
-	for (unsigned int i = 0; i < Count; i++)//对每个顶点进行扫描并添加到NET中
+	std::list<Edge> AEL;
+	for (int y = YMIN; y < YMAX; y++)//针对多边形覆盖区域的每条扫描线处理
 	{
-		//Y增大方向指向屏幕下面,按照Y方向增大新增至NET和AET
-		//共享顶点pArray[(i+Count)%Count]的两条边一条(pArray[i-1])在扫描线下面，一条(pArray[i+1])在扫描线上面,记录i-1
-		if (pArray[(i + Count - 1) % Count].value[1] > pArray[(i + Count) % Count].value[1] && pArray[(i + Count + 1) % Count].value[1] < pArray[(i + Count) % Count].value[1])
+		if (!NET[y].empty())//如果当前扫描线对应的NET不为空
 		{
-			double dx = (pArray[(i + Count) % Count].value[0] - pArray[(i + Count - 1) % Count].value[0]) / (pArray[(i + Count) % Count].value[1] - pArray[(i + Count - 1) % Count].value[1]);
-			NET[(int)pArray[(i + Count) % Count].value[1]].push_back(EdgeTableItem(pArray[(i + Count) % Count].value[0], dx, pArray[(i + Count - 1) % Count].value[1]));
+			AEL.splice(AEL.end(), NET[y]);//将其添加到AEL中
+			AEL.sort(SortEdge);//将交点排序
 		}
-		//共享顶点pArray[(i+Count)%Count]的两条边一条(pArray[i-1])在扫描线上面，一条(pArray[i+1])在扫描线下面,记录i+1
-		else if (pArray[(i + Count - 1) % Count].value[1] < pArray[(i + Count) % Count].value[1] && pArray[(i + Count + 1) % Count].value[1] > pArray[(i + Count) % Count].value[1])
+		std::list<Edge>::iterator edgeStar, edgeEnd;//成对取出的交点
+		int counterOfedge = 0;//取出交点的计数器，方便成对取出交点
+		for (std::list<Edge>::iterator it = AEL.begin(); it != AEL.end();)//遍历AEL中的每个交点
 		{
-			double dx = (pArray[(i + Count) % Count].value[0] - pArray[(i + Count + 1) % Count].value[0]) / (pArray[(i + Count) % Count].value[1] - pArray[(i + Count + 1) % Count].value[1]);
-			NET[(int)pArray[(i + Count) % Count].value[1]].push_back(EdgeTableItem(pArray[(i + Count) % Count].value[0], dx, pArray[(i + Count + 1) % Count].value[1]));
-		}
-		//共享顶点pArray[(i+Count)%Count]的两条边一条(pArray[i-1])在扫描线上面，一条(pArray[i+1])和扫描线重合
-		else if (pArray[(i + Count - 1) % Count].value[1] < pArray[(i + Count) % Count].value[1] && pArray[(i + Count + 1) % Count].value[1] == pArray[(i + Count) % Count].value[1])
-		{
-			//记录0个顶点
-		}
-		//共享顶点pArray[(i+Count)%Count]的两条边一条(pArray[i-1])和扫描线重合，一条(pArray[i+1])在扫描线上面
-		else if (pArray[(i + Count - 1) % Count].value[1] == pArray[(i + Count) % Count].value[1] && pArray[(i + Count + 1) % Count].value[1] < pArray[(i + Count) % Count].value[1])
-		{
-			//记录0个顶点
-		}
-		//共享顶点pArray[(i+Count)%Count]的两条边一条(pArray[i-1])在扫描线下面，一条(pArray[i+1])和扫描线重合，记录i-1
-		else if (pArray[(i + Count - 1) % Count].value[1] > pArray[(i + Count) % Count].value[1] && pArray[(i + Count + 1) % Count].value[1] == pArray[(i + Count) % Count].value[1])
-		{
-			double dx = (pArray[(i + Count) % Count].value[0] - pArray[(i + Count - 1) % Count].value[0]) / (pArray[(i + Count) % Count].value[1] - pArray[(i + Count - 1) % Count].value[1]);
-			NET[(int)pArray[(i + Count) % Count].value[1]].push_back(EdgeTableItem(pArray[(i + Count) % Count].value[0], dx, pArray[(i + Count - 1) % Count].value[1]));
-			NET[(int)pArray[(i + Count) % Count].value[1]].sort(SortEdgeTableItem);//本扫描线有两个边表，需要排序
-		}
-		//共享顶点pArray[(i+Count)%Count]的两条边一条(pArray[i-1])和扫描线重合，一条(pArray[i+1])在扫描线下面,记录i+1
-		else if (pArray[(i + Count - 1) % Count].value[1] == pArray[(i + Count) % Count].value[1] && pArray[(i + Count + 1) % Count].value[1] > pArray[(i + Count) % Count].value[1])
-		{
-			double dx = (pArray[(i + Count) % Count].value[0] - pArray[(i + Count + 1) % Count].value[0]) / (pArray[(i + Count) % Count].value[1] - pArray[(i + Count + 1) % Count].value[1]);
-			NET[(int)pArray[(i + Count) % Count].value[1]].push_back(EdgeTableItem(pArray[(i + Count) % Count].value[0], dx, pArray[(i + Count + 1) % Count].value[1]));
-		}
-		//共享顶点pArray[(i+Count)%Count]的两条边都在扫描线上方
-		else if (pArray[(i + Count - 1) % Count].value[1] < pArray[(i + Count) % Count].value[1] && pArray[(i + Count + 1) % Count].value[1] < pArray[(i + Count) % Count].value[1])
-		{
-			//记录0个顶点
-		}
-		//共享顶点pArray[(i+Count)%Count]的两条边都在扫描线下方, 记录i-1和i+1
-		else if (pArray[(i + Count - 1) % Count].value[1] > pArray[(i + Count) % Count].value[1] && pArray[(i + Count + 1) % Count].value[1] > pArray[(i + Count) % Count].value[1])
-		{
-			double dx1 = (pArray[(i + Count) % Count].value[0] - pArray[(i + Count - 1) % Count].value[0]) / (pArray[(i + Count) % Count].value[1] - pArray[(i + Count - 1) % Count].value[1]);
-			NET[(int)pArray[(i + Count) % Count].value[1]].push_back(EdgeTableItem(pArray[(i + Count) % Count].value[0], dx1, pArray[(i + Count - 1) % Count].value[1]));//记录i-1
-			double dx2 = (pArray[(i + Count) % Count].value[0] - pArray[(i + Count + 1) % Count].value[0]) / (pArray[(i + Count) % Count].value[1] - pArray[(i + Count + 1) % Count].value[1]);
-			NET[(int)pArray[(i + Count) % Count].value[1]].push_back(EdgeTableItem(pArray[(i + Count) % Count].value[0], dx2, pArray[(i + Count + 1) % Count].value[1]));//记录i+1
-			NET[(int)pArray[(i + Count) % Count].value[1]].sort(SortEdgeTableItem);//本扫描线有两个边表，需要排序
-		}
-		//共享顶点pArray[(i+Count)%Count]的两条边都和扫描线重合
-		else if (pArray[(i + Count - 1) % Count].value[1] == pArray[(i + Count) % Count].value[1] && pArray[(i + Count + 1) % Count].value[1] == pArray[(i + Count) % Count].value[1])
-		{
-			//记录0个顶点
-		}
-		else
-		{
-			fprintf(stderr, "error");
-		}
-	}
-
-	for (int scanLine = Min; scanLine <= Max; scanLine++)//开始绘制
-	{
-		std::list<EdgeTableItem>::iterator it_end = AET.end();
-		if (!NET[scanLine].empty())
-		{
-			AET.splice(it_end, NET[scanLine]);//在当前扫描线添加新边
-			AET.sort(SortEdgeTableItem);
-		}
-		std::list<EdgeTableItem>::iterator s, e;
-		int CountPosite = 0;
-		for (std::list<EdgeTableItem>::iterator it = AET.begin(); it != AET.end();)
-		{
-			if ((int)it->Ymax <= scanLine)
+			if ((int)it->Ymax <= y)
 			{
-				it = AET.erase(it);//当前扫描线已经超过it这条边的Ymax,将it边删除
+				it = AEL.erase(it);//当前扫描线已经超过it这条边的Ymax,将it边删除，因为执行erase会自动将指针往后移动一个元素，所以这里就不用执行it++了
 			}
 			else
 			{
-				CountPosite++;
-				if (CountPosite % 2 == 1)//起始顶点
+				if (counterOfedge == 0)//当前取出的是一对交点中的前一个
 				{
-					s = it;
+					edgeStar = it;
+					counterOfedge++;
 				}
-				else
+				else//当前取的是一对交点点中的后一个，已经配成对了
 				{
-					e = it;
-					for (unsigned int x = (int)s->x; x < e->x; x++)
+					edgeEnd = it;
+					counterOfedge = 0;
+					for (int x = (int)edgeStar->x; x < edgeEnd->x; x++)//绘制这对交点组成的线段
 					{
-						double Weight[3] = { 0,0,0 };
-						double Weight1[3] = { 0,0,0 };
-						Interpolation(pArray, x, scanLine, Weight, square);//使用重心坐标插值计算出三个顶点对(j,i)的权重
-						double Pomega = 1 / ((1 / pArray[0].value[3]) * Weight[0] + (1 / pArray[1].value[3]) * Weight[1] + (1 / pArray[2].value[3]) * Weight[2]);//求出当前顶点的ω分量
-						double z = Pomega*(pArray[0].value[2] / pArray[0].value[3] * Weight[0] + pArray[1].value[2] / pArray[1].value[3] * Weight[1] + pArray[2].value[2] / pArray[2].value[3] * Weight[2]);//使用线性插值计算当前绘制像素的Z值
-						if (DepthBuffer[scanLine * viewPortWidth + x] > z)//深度测试,测试通过的像素才计算插值 
+						double WeightA, WeightB, WeightC;
+						Vector3 bp(x - ps[1].value[0], y - ps[1].value[1], 0.0);
+						Vector3 ap(x - ps[0].value[0], y - ps[0].value[1], 0.0);
+						Vector3 cp(x - ps[2].value[0], y - ps[2].value[1], 0.0);
+						WeightA = (bc.value[0] * bp.value[1] - bc.value[1] * bp.value[0]) / square;
+						WeightB = (ca.value[0] * cp.value[1] - ca.value[1] * cp.value[0]) / square;
+						WeightC = (ab.value[0] * ap.value[1] - ab.value[1] * ap.value[0]) / square;//得到屏幕空间中三个顶点的权值
+
+						double z;//P点的Z值
+						double Pomega = 1 / ((1 / ps[0].value[3]) * WeightA + (1 / ps[1].value[3]) * WeightB + (1 / ps[2].value[3]) * WeightC);//求出当前顶点的ω分量
+
+						z = Pomega * (ps[0].value[2] / ps[0].value[3] * WeightA + ps[1].value[2] / ps[1].value[3] * WeightB + ps[2].value[2] / ps[2].value[3] * WeightC);//使用线性插值计算当前绘制像素的Z值
+						if (z > Z_Buffer[y * 640 + x])
 						{
-							for (int index = 0; index < CountOfVarying; index++)//对每个Varying插值
-							{
-								interpolationVarying[index] = Pomega * (varying[index] / pArray[0].value[3] * Weight[0] + varying[index + CountOfVarying] / pArray[1].value[3] * Weight[1] + varying[index + CountOfVarying * 2] / pArray[2].value[3] * Weight[2]);
-							}
-							COLORREF c;
-							FragmentShader(interpolationVarying, c);//调用片元着色器
-
-							//因为(x,scanline)是视口坐标，所以需要加上一个(viewPortX,viewPortY)的偏移
-							fast_putpixel(x + viewPortX, scanLine + (ScreenHeight - viewPortY - viewPortHeight), c);//填充颜色
-							DepthBuffer[scanLine * viewPortWidth + x] = z;//更新深度信息
+							continue;//跳过当前像素的绘制
 						}
-					}
+						else
+						{
+							Z_Buffer[y * ScreenWidth + x] = z;//更新深度信息
+						}
+						for (int index = 0; index < CountOfVarying; index++)//对每个Varying插值
+						{
+							interpolationVarying[index] = Pomega * (varying[index] / ps[0].value[3] * WeightA + varying[index + CountOfVarying] / ps[1].value[3] * WeightB + varying[index + CountOfVarying * 2] / ps[2].value[3] * WeightC);
+						}
 
-					s->x += s->dx;//更新NET
-					e->x += e->dx;
+						COLORREF c;
+						FragmentShader(interpolationVarying, c);//调用片元着色器
+
+						//因为(x,scanline)是视口坐标，所以需要加上一个(viewPortX,viewPortY)的偏移
+						fast_putpixel(x, y, c);//填充颜色
+					}
+					//将这对交点的x值增加dx
+					edgeStar->x += edgeStar->dx;
+					edgeEnd->x += edgeEnd->dx;
 				}
-				++it;
+				it++;
 			}
 		}
 	}
 }
-
 void GraphicsLibrary::setVBO(double* buffer, int numOfvertex, int count)
 {
 	if (vboBuffer != NULL)
@@ -663,38 +584,13 @@ void GraphicsLibrary::setVBO(double* buffer, int numOfvertex, int count)
 	NumOfVertexVBO = numOfvertex;
 	vboCount = count;
 }
-/*
-重心坐标插值:假如有三个顶点P0,P1,P2和待插值点P,三角形面积为S,三角形P P1 P2的面积为S0(P0对边和P围成的三角形),P P0 P2面积为S1,P P0 P1面积为S2
-则三角形三个顶点对点P的权重W1,W2,W3计算为:
-W1=S1/S,W2=S2/S,W3=S3/S
-下面这个是我自己推算的，不知道是不是正确的:
-如果P P1 P2这个三角形和三角形P0,P1,P2有相交部分，面积取正，否则取负
-*/
-void GraphicsLibrary::Interpolation(Point4 ps[3], double x, double y, double Weight[3], double Square)
-{
-	//使用有向面积计算重心坐标插值
-	/*
-	向量叉积的模为面积的两倍，叉积为面积方向，当z=0的时候，可简化为面积=|(ax*by-ay*bx)|/2,去掉绝地值符号得到有向面积，为正表示顺时针，为负表示逆时针
-	*/
-	Vector3 a(ps[1].value[0] - ps[0].value[0], ps[1].value[1] - ps[0].value[1], 0.0);//p0 p1
-	Vector3 b(ps[2].value[0] - ps[1].value[0], ps[2].value[1] - ps[1].value[1], 0.0);//p1 p2
-	Vector3 c(ps[0].value[0] - ps[2].value[0], ps[0].value[1] - ps[2].value[1], 0.0);//p2 p0
-	Vector3 a1(x - ps[1].value[0], y - ps[1].value[1], 0.0);//p1 (x,y)
-	Vector3 b1(x - ps[2].value[0], y - ps[2].value[1], 0.0);//p2 (x,y)
-	Vector3 c1(x - ps[0].value[0], y - ps[0].value[1], 0.0);//p0 (x,y)
-	double s2 = a.value[0] * a1.value[1] - a.value[1] * a1.value[0];//顶点p2对面面积*2
-	double s0 = b.value[0] * b1.value[1] - b.value[1] * b1.value[0];//顶点p0对面面积*2
-	double s1 = c.value[0] * c1.value[1] - c.value[1] * c1.value[0];//顶点p1对面面积*2
-	Weight[0] = s0 / Square;
-	Weight[1] = s1 / Square;
-	Weight[2] = s2 / Square;
-}
+
 
 GraphicsLibrary::~GraphicsLibrary()
 {
-	if (DepthBuffer != NULL)
+	if (Z_Buffer != NULL)
 	{
-		delete[] DepthBuffer;
+		delete[] Z_Buffer;
 	}
 	if (textureBuffer != NULL)
 	{

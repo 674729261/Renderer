@@ -4,7 +4,7 @@
 #include <list>
 #include "Point2.h"
 #include "Point4.h"
-#include "EdgeTableItem.h"
+#include "Edge.h"
 #include "Matrix4.h"
 /*
 不支持ddy和ddy，所以没有Mipmap，因为实现起来比较麻烦
@@ -25,7 +25,6 @@ class GraphicsLibrary
 {
 	/*坐标系是上面为Y正方向，右面为X正方向，屏幕向外为Z正方向*/
 public:
-	bool setViewPort(int x,int y,int w,int h);//设置视口坐标和宽高，即在屏幕内部的一个子区域绘制
 	char errmsg[1024] = { '0' };//错误信息，如果执行出错则可以读取本信息
 	void (*VertexShader)(const double* vbo, double* varying, Point4& Position);//顶点着色器，概念和OpenGL类似，但是参数有区别，下面是ABO的说明
 	/*
@@ -42,7 +41,6 @@ public:
 	bool CW_CCW = false;//默认逆时针,true为顺时针
 	GraphicsLibrary(unsigned int w, unsigned int h);
 	void setVBO(double* buffer, int numOfvertex, int count);
-	void Interpolation(Point4 parry[3], double x, double y, double Weight[3], double Square);//使用屏幕坐标插值计算三角形各个顶点的权重并保存在Weight中
 	~GraphicsLibrary();
 	void fast_putpixel(int x, int y, COLORREF c);
 	COLORREF fast_getpixel(int x, int y);
@@ -56,7 +54,6 @@ public:
 	COLORREF texture2D(double x, double y);//读取纹理中的颜色
 private:
 	unsigned int ScreenWidth = 0, ScreenHeight = 0;
-	unsigned viewPortX = 0, viewPortY = 0, viewPortWidth = 0, viewPortHeight = 0;//视口起始坐标和宽高，从左下角开始
 	int bmpHeight = 0;
 	int bmpwidth = 0;//位图宽高
 	unsigned char* bmpData = NULL;//位图数据区
@@ -64,12 +61,12 @@ private:
 	int TextureHeight, TextureWidth;//纹理宽高
 	void DrawTriangle(Point4* pointArray,double* varying);//使用扫描线填充算法绘制三角形
 	DWORD* g_pBuf;//显存指针
-	double* DepthBuffer = NULL;//深度缓冲区
+	double* Z_Buffer = NULL;//深度缓冲区
 	double* vboBuffer = NULL;//vob
 	int vboCount = 0;//顶点数量
 	int NumOfVertexVBO = 0;//每个顶点的顶点数量
 	int CountOfVarying = 0;//Varying变量数量
-	std::list<EdgeTableItem>* NET = NULL;//新边表和ViewPortHeight大小一样
+	std::list<Edge>* NET = NULL;//新边表和ScreenHeight大小一样
 	double* interpolationVarying = NULL;//当前线程在绘制当前顶点插值之后的varying，因为单线程，所以这里只需要一个就行了
 	int clipEdge(Point4& A, Point4& B, Point4& tmpA, Point4& tmpB, double& proportionA, double& proportionB);//对边进行裁剪(在四维空间中)
 	int clipEdgeByParallelFace(Point4& A, Point4& B, Point4& tmpA, Point4& tmpB, double& proportionA, double& proportionB,int flag);//使用一组平行平面裁剪边,flag为1，2，3时分别使用left right、bottom top、near far平面裁剪
