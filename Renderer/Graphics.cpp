@@ -626,11 +626,10 @@ void GraphicsLibrary::DrawTriangle(Point4* parray, double* varying)
 						double Weight[3] = { 0,0,0 };
 						double Weight1[3] = { 0,0,0 };
 						Interpolation(pArray, x, scanLine, Weight, square);//使用重心坐标插值计算出三个顶点对(j,i)的权重
-						double PomegaReciprocal = ((1 / pArray[0].value[3]) * Weight[0] + (1 / pArray[1].value[3]) * Weight[1] + (1 / pArray[2].value[3]) * Weight[2]);//求出当前顶点的ω分量的倒数
-						double z = (pArray[0].value[2] / pArray[0].value[3] * Weight[0] + pArray[1].value[2] / pArray[1].value[3] * Weight[1] + pArray[2].value[2] / pArray[2].value[3] * Weight[2])/PomegaReciprocal;//使用线性插值计算当前绘制像素的Z值
+						double Pomega = 1 / ((1 / pArray[0].value[3]) * Weight[0] + (1 / pArray[1].value[3]) * Weight[1] + (1 / pArray[2].value[3]) * Weight[2]);//求出当前顶点的ω分量
+						double z = Pomega*(pArray[0].value[2] / pArray[0].value[3] * Weight[0] + pArray[1].value[2] / pArray[1].value[3] * Weight[1] + pArray[2].value[2] / pArray[2].value[3] * Weight[2]);//使用线性插值计算当前绘制像素的Z值
 						if (DepthBuffer[scanLine * viewPortWidth + x] > z)//深度测试,测试通过的像素才计算插值 
 						{
-							double Pomega = 1 / (Weight[0] * (1 / pArray[0].value[3]) + Weight[1] * (1 / pArray[1].value[3]) + Weight[2] * (1 / pArray[2].value[3]));//这个值是原始深度
 							for (int index = 0; index < CountOfVarying; index++)//对每个Varying插值
 							{
 								interpolationVarying[index] = Pomega * (varying[index] / pArray[0].value[3] * Weight[0] + varying[index + CountOfVarying] / pArray[1].value[3] * Weight[1] + varying[index + CountOfVarying * 2] / pArray[2].value[3] * Weight[2]);

@@ -151,7 +151,7 @@ int main()
 	gl->VertexShader = vs;//设置顶点着色器程序
 	gl->FragmentShader = fs;//设置片元着色器程序
 
-	Vector3 eyePosition(0, 0, 9.5); //相机原点
+	Vector3 eyePosition(0, 0, 15); //相机原点
 	if (!loadOBJ("mod/cube.obj", gl))//从文件加载模型
 	{
 		sprintf(msg, "加载obj文件失败\n");
