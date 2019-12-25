@@ -626,33 +626,21 @@ void GraphicsLibrary::DrawTriangle(Point4* parray, double* varying)
 						double Weight[3] = { 0,0,0 };
 						double Weight1[3] = { 0,0,0 };
 						Interpolation(pArray, x, scanLine, Weight, square);//使用重心坐标插值计算出三个顶点对(j,i)的权重
-						double depth = Weight[0] * pArray[0].value[2] + Weight[1] * pArray[1].value[2] + Weight[2] * pArray[2].value[2];//计算深度值，这个值虽然不是线性的，但是经过线性插值仍然能保证大的更大，小的更小
-						if (depth < -1.0 || depth>1.0)//如果深度超出[-1,1]区间则放弃当前像素
+						double PomegaReciprocal = ((1 / pArray[0].value[3]) * Weight[0] + (1 / pArray[1].value[3]) * Weight[1] + (1 / pArray[2].value[3]) * Weight[2]);//求出当前顶点的ω分量的倒数
+						double z = (pArray[0].value[2] / pArray[0].value[3] * Weight[0] + pArray[1].value[2] / pArray[1].value[3] * Weight[1] + pArray[2].value[2] / pArray[2].value[3] * Weight[2])/PomegaReciprocal;//使用线性插值计算当前绘制像素的Z值
+						if (DepthBuffer[scanLine * viewPortWidth + x] > z)//深度测试,测试通过的像素才计算插值 
 						{
-							continue;//放弃本像素
-						}
-						if (DepthBuffer[scanLine * viewPortWidth + x] > depth)//深度测试,测试通过的像素才计算插值 
-						{
-							/*
-							 普通线性插值计算出(j,i)的值:v=Weight[0]*v1+Weight[1]*v2+Weight[2]*v3
-							 深度值Depth:D(j,i)=1/z=Weight[0]*(1/z1)+Weight[1]*(1/z2)+Weight[2]*(1/z3)
-							 根据透视校正的原理(j,i)的值:v/z=Weight[0]*(v1/z1)+Weight[1]*(v2/z2)+Weight[2]*(v3/z3)
-							*/
-							if ((Weight[0] * (1 / pArray[0].value[3]) + Weight[1] * (1 / pArray[1].value[3]) + Weight[2] * (1 / pArray[2].value[3])) == 0)
-							{
-								continue;//相机远点和屏幕当前点的连线和三角形平行，无法计算深度(实际上这个像素也是不在三角形内部的，但是因为像素取值都是整数，所以这里就需要判断一下了)
-							}
-							double originDepth = 1 / (Weight[0] * (1 / pArray[0].value[3]) + Weight[1] * (1 / pArray[1].value[3]) + Weight[2] * (1 / pArray[2].value[3]));//这个值是原始深度
+							double Pomega = 1 / (Weight[0] * (1 / pArray[0].value[3]) + Weight[1] * (1 / pArray[1].value[3]) + Weight[2] * (1 / pArray[2].value[3]));//这个值是原始深度
 							for (int index = 0; index < CountOfVarying; index++)//对每个Varying插值
 							{
-								interpolationVarying[index] = originDepth * (varying[index] / pArray[0].value[3] * Weight[0] + varying[index + CountOfVarying] / pArray[1].value[3] * Weight[1] + varying[index + CountOfVarying * 2] / pArray[2].value[3] * Weight[2]);
+								interpolationVarying[index] = Pomega * (varying[index] / pArray[0].value[3] * Weight[0] + varying[index + CountOfVarying] / pArray[1].value[3] * Weight[1] + varying[index + CountOfVarying * 2] / pArray[2].value[3] * Weight[2]);
 							}
 							COLORREF c;
 							FragmentShader(interpolationVarying, c);//调用片元着色器
 
 							//因为(x,scanline)是视口坐标，所以需要加上一个(viewPortX,viewPortY)的偏移
 							fast_putpixel(x + viewPortX, scanLine + (ScreenHeight - viewPortY - viewPortHeight), c);//填充颜色
-							DepthBuffer[scanLine * viewPortWidth + x] = depth;//更新深度信息
+							DepthBuffer[scanLine * viewPortWidth + x] = z;//更新深度信息
 						}
 					}
 
