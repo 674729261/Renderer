@@ -430,7 +430,6 @@ bool SortEdge(Edge const& E1, Edge const& E2)//将边表排序，按X增序排�
 	}
 }
 //本函数中插值计算都是采用double
-//本函数中插值计算都是采用double
 void GraphicsLibrary::DrawTriangle(Point4* parray, double* varying)
 {
 	Point4 ps[3];
@@ -447,7 +446,7 @@ void GraphicsLibrary::DrawTriangle(Point4* parray, double* varying)
 
 		//视口变换
 		ps[i].value[0] = (ps[i].value[0] + 1) / 2 * (ScreenWidth - 1);//将ccv空间转换到视口空间
-		ps[i].value[1] = (ScreenHeight - 1) - (ps[i].value[1] + 1) / 2 * (ScreenHeight - 1);//在viewPort上下颠倒
+		ps[i].value[1] = (ScreenHeight - 1) - (ps[i].value[1] + 1) / 2 * (ScreenHeight - 1);
 	}
 	Vector3 ab(ps[1].value[0] - ps[0].value[0], ps[1].value[1] - ps[0].value[1], 0.0);//ps[0]->ps[1]
 	Vector3 bc(ps[2].value[0] - ps[1].value[0], ps[2].value[1] - ps[1].value[1], 0.0);//ps[1]->ps[2]
