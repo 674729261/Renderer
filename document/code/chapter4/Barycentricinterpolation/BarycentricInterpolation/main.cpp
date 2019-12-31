@@ -4,8 +4,6 @@
 #include <list>//ÎªÁË·½±ã£¬Ê¹ÓÃÁËSTLµÄlist£¬ÕâÑù¾Í²»ÓÃ×Ô¼ºÊÖĞ´Á´±íÁË£¬±¾ÎÄÖ÷ÒªÊÇ½ÌÍ¼ĞÎÑ§¶ø²»ÊÇÊı¾İ½á¹¹
 #include <deque>
 #include "Vector3.h"
-#include <chrono>
-#pragma warning(disable:4996)
 struct Edge//±ß½á¹¹
 {
 	double X;
@@ -14,23 +12,6 @@ struct Edge//±ß½á¹¹
 	Edge(double x, double dx, double ymax) :X(x), DX(dx), YMAX(ymax)
 	{}
 };
-COLORREF picture[2][2] = {//´´½¨Ò»¸ö2*2µÄ¶şÖµÍ¼Æ¬
-	{RGB(255,0,0),RGB(255,255,255)},
-	{RGB(0,255,0),RGB(0,0,255)}
-};
-//»ñÈ¡Í¼Æ¬ÑÕÉ«
-COLORREF getPixel(int x, int y)
-{
-	return picture[x][y];
-}
-//°Ñuv×ø±ê×ª»»³Éxy×ø±ê
-void UV2XY(double u, double v, double& x, double& y, double w, double h)
-{
-	x = u * w;
-	y = v * h;
-	x = min(max(x, 0), w);//°ÑxÏŞÖÆÔÚ[0,w]Çø¼ä
-	y = min(max(y, 0), h);//°ÑyÏŞÖÆÔÚ[0,h]Çø¼ä
-}
 //±ßÅÅĞò´úÂë£¬¸østd::listÅÅĞòÊ±µ÷ÓÃ
 bool SortEdge(Edge const& E1, Edge const& E2)//½«±ß±íÅÅĞò£¬°´XÔöĞòÅÅĞò£¬Èç¹ûXÒ»Ñù£¬Ôò°´ÕÕdxÔöĞòÅÅĞò
 {
@@ -44,7 +25,7 @@ bool SortEdge(Edge const& E1, Edge const& E2)//½«±ß±íÅÅĞò£¬°´XÔöĞòÅÅĞò£¬Èç¹ûXÒ»Ñ
 	}
 }
 //Ê¹ÓÃ¶à±ßĞÎÌî³äº¯Êı¼òµ¥µÄ¸ÄÔìÁËÒ»ÏÂ£¬°ÑËùÓĞµÄcount»»³ÉÁË3
-void FillTriangle(Graphics& gp, Point2* ps, double* coordinate)
+void FillTriangle(Graphics& gp, Point2* ps, double* Colors)
 {
 	Vector3 ab(ps[1].X - ps[0].X, ps[1].Y - ps[0].Y, 0.0);//ps[0]->ps[1]
 	Vector3 bc(ps[2].X - ps[1].X, ps[2].Y - ps[1].Y, 0.0);//ps[1]->ps[2]
@@ -120,14 +101,11 @@ void FillTriangle(Graphics& gp, Point2* ps, double* coordinate)
 						WeightA = (bc.X * bp.Y - bc.Y * bp.X) / square;
 						WeightB = (ca.X * cp.Y - ca.Y * cp.X) / square;
 						WeightC = (ab.X * ap.Y - ab.Y * ap.X) / square;//µÃµ½Èı¸ö¶¥µãµÄÈ¨Öµ
-
-						double u, v;//ÎÆÀíµÄuv
-						u = WeightA * coordinate[0] + WeightB * coordinate[2] + WeightC * coordinate[4];//Ê¹ÓÃÏßĞÔ²åÖµ¼ÆËãµ±Ç°»æÖÆÏñËØµÄuÖµ
-						v = WeightA * coordinate[1] + WeightB * coordinate[3] + WeightC * coordinate[5];//Ê¹ÓÃÏßĞÔ²åÖµ¼ÆËãµ±Ç°»æÖÆÏñËØµÄvÖµ
-						double px, py;//Í¼Æ¬µÄx,y
-						UV2XY(u, v, px, py, 2, 2);//½«uv×ª»»³Éxy×ø±ê
-						COLORREF c = getPixel((int)px, (int)py);
-						gp.setPixel(x, y, c);//»æÖÆÏñËØ
+						BYTE cr, cg, cb;
+						cr = (BYTE)(WeightA * Colors[0] + WeightB * Colors[3] + WeightC * Colors[6]);
+						cg = (BYTE)(WeightA * Colors[1] + WeightB * Colors[4] + WeightC * Colors[7]);
+						cb = (BYTE)(WeightA * Colors[2] + WeightB * Colors[5] + WeightC * Colors[8]);//¼ÆËãRGBµÄ²åÖµ½á¹û
+						gp.setPixel(x, y, RGB(cr, cg, cb));//»æÖÆÏñËØ
 					}
 					//½«Õâ¶Ô½»µãµÄxÖµÔö¼Ódx
 					edgeStar->X += edgeStar->DX;
@@ -139,21 +117,15 @@ void FillTriangle(Graphics& gp, Point2* ps, double* coordinate)
 	}
 	delete[] NET;
 }
-
 int main()
 {
 	Point2 Polygon[] = { {0,0},{400,0},{400,400} };
-	double coordinate[] = {//ÎÆÀí×ø±ê
-		0,0,1,0,1,1
+	double Color[] = {
+		255,0,0,
+		0,255,0,
+		0,0,255
 	};
 	Graphics gp(640, 480);//´´½¨»æÍ¼´°¿Ú
-	std::chrono::system_clock::time_point start = std::chrono::system_clock::now();
-	FillTriangle(gp, Polygon, coordinate);//»æÖÆÈı½ÇĞÎ
-	std::chrono::system_clock::time_point end = std::chrono::system_clock::now();
-	std::chrono::microseconds duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
-	double useTime = double(duration.count()) * std::chrono::microseconds::period::num / std::chrono::microseconds::period::den;//»¨·ÑÊ±¼ä
-	char msg[256];//Íùµ÷ÊÔÆ÷´òÓ¡ĞÅÏ¢ÓÃµÄ»º³åÇø
-	sprintf(msg, "Debug°æ±¾£¬ÖØĞÄ×ø±ê²åÖµ»æÖÆºÄÊ±:%lf ºÁÃë\n", useTime * 1000);
-	OutputDebugStringA(msg);//Íùµ÷ÊÔÆ÷Êä³öÁ½Ö¡»æÖÆÊ±¼ä¼ä¸ô
+	FillTriangle(gp, Polygon, Color);//»æÖÆÈı½ÇĞÎ
 	getchar();
 }

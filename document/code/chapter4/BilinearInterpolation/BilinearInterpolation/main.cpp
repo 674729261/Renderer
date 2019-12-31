@@ -11,7 +11,12 @@ struct Edge//边结构
 	double X;
 	double DX;
 	double YMAX;
-	Edge(double x, double dx, double ymax) :X(x), DX(dx), YMAX(ymax)
+	//uv分别表示纹理的uv坐标
+	double U;//属性的起始值
+	double V;
+	double DU;//记录当前边上属性在不同扫描线上面的增量
+	double DV;
+	Edge(double x, double dx, double ymax, double u, double v, double du, double dv) :X(x), DX(dx), YMAX(ymax), U(u), V(v), DU(du), DV(dv)
 	{}
 };
 COLORREF picture[2][2] = {//创建一个2*2的二值图片
@@ -64,19 +69,28 @@ void FillTriangle(Graphics& gp, Point2* ps, double* coordinate)
 	for (int i = 0; i < 3; i++)//对每条边都会被判断两次，选择Y值小的点作为起点，Y值大的点作为终点，平行于扫描线的边被放弃,并且因为放弃了与扫描线平行的边，所以也不会出现dx等于无穷大的情况
 	{
 		double x, dx, ymax;
+		double u, v, du, dv;//纹理uv在不同扫描线上面的增量
 		if (ps[i].Y > ps[(i + 1) % 3].Y)//以pi+1作为起点,pi作为终点
 		{
 			x = ps[(i + 1) % 3].X;
 			dx = (ps[(i + 1) % 3].X - ps[i].X) / (ps[(i + 1) % 3].Y - ps[i].Y);
 			ymax = ps[i].Y;
-			NET[(int)ps[(i + 1) % 3].Y].push_back(Edge(x, dx, ymax));
+			u = coordinate[((i + 1) % 3) * 2];
+			v = coordinate[((i + 1) % 3) * 2 + 1];
+			du = (coordinate[((i + 1) % 3) * 2] - coordinate[(i % 3) * 2]) / (ps[(i + 1) % 3].Y - ps[i].Y);
+			dv = (coordinate[((i + 1) % 3) * 2 + 1] - coordinate[(i % 3) * 2 + 1]) / (ps[(i + 1) % 3].Y - ps[i].Y);
+			NET[(int)ps[(i + 1) % 3].Y].push_back(Edge(x, dx, ymax, u, v, du, dv));
 		}
 		else if (ps[i].Y < ps[(i + 1) % 3].Y)//以pi作为起点，pi+1作为终点
 		{
 			x = ps[i].X;
 			dx = (ps[(i + 1) % 3].X - ps[i].X) / (ps[(i + 1) % 3].Y - ps[i].Y);
 			ymax = ps[(i + 1) % 3].Y;
-			NET[(int)ps[i].Y].push_back(Edge(x, dx, ymax));
+			u = coordinate[(i % 3) * 2];
+			v = coordinate[(i % 3) * 2 + 1];
+			du = (coordinate[((i + 1) % 3) * 2] - coordinate[(i % 3) * 2]) / (ps[(i + 1) % 3].Y - ps[i].Y);
+			dv = (coordinate[((i + 1) % 3) * 2 + 1] - coordinate[(i % 3) * 2 + 1]) / (ps[(i + 1) % 3].Y - ps[i].Y);
+			NET[(int)ps[i].Y].push_back(Edge(x, dx, ymax, u, v, du, dv));
 		}
 		else//平行于扫描线的边
 		{
@@ -111,27 +125,38 @@ void FillTriangle(Graphics& gp, Point2* ps, double* coordinate)
 				{
 					edgeEnd = it;
 					counterOfedge = 0;
-					for (int x = (int)edgeStar->X; x < edgeEnd->X; x++)//绘制这对交点组成的线段
-					{
-						double WeightA, WeightB, WeightC;
-						Vector3 bp(x - ps[1].X, y - ps[1].Y, 0.0);
-						Vector3 ap(x - ps[0].X, y - ps[0].Y, 0.0);
-						Vector3 cp(x - ps[2].X, y - ps[2].Y, 0.0);
-						WeightA = (bc.X * bp.Y - bc.Y * bp.X) / square;
-						WeightB = (ca.X * cp.Y - ca.Y * cp.X) / square;
-						WeightC = (ab.X * ap.Y - ab.Y * ap.X) / square;//得到三个顶点的权值
+					double su = edgeStar->U;//取得当前扫描线上面X,U,V初始值和结束值
+					double eu = edgeEnd->U;
+					double sv = edgeStar->V;
+					double ev = edgeEnd->V;
+					double sx = edgeStar->X;
+					double ex = edgeEnd->X;
 
-						double u, v;//纹理的uv
-						u = WeightA * coordinate[0] + WeightB * coordinate[2] + WeightC * coordinate[4];//使用线性插值计算当前绘制像素的u值
-						v = WeightA * coordinate[1] + WeightB * coordinate[3] + WeightC * coordinate[5];//使用线性插值计算当前绘制像素的v值
+					double dxu, dxv;
+					dxu = (eu - su) / (ex - sx);//计算属性在扫描线上面的增量
+					dxv = (ev - sv) / (ex - sx);
+
+					int x = sx;//初始化当前像素的x,u,v属性值
+					double u = su;
+					double v = sv;
+					for (; x < ex; x++)//绘制这对交点组成的线段
+					{
 						double px, py;//图片的x,y
 						UV2XY(u, v, px, py, 2, 2);//将uv转换成xy坐标
 						COLORREF c = getPixel((int)px, (int)py);
 						gp.setPixel(x, y, c);//绘制像素
+						u += dxu;
+						v += dxv;
 					}
-					//将这对交点的x值增加dx
+
+					//绘制完成一条扫描线，将这对交点的x、u、v属性值增加dx
 					edgeStar->X += edgeStar->DX;
 					edgeEnd->X += edgeEnd->DX;
+
+					edgeStar->U += edgeStar->DU;
+					edgeEnd->U += edgeEnd->DU;
+					edgeStar->V += edgeStar->DV;
+					edgeEnd->V += edgeEnd->DV;
 				}
 				it++;
 			}
@@ -153,7 +178,7 @@ int main()
 	std::chrono::microseconds duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
 	double useTime = double(duration.count()) * std::chrono::microseconds::period::num / std::chrono::microseconds::period::den;//花费时间
 	char msg[256];//往调试器打印信息用的缓冲区
-	sprintf(msg, "Debug版本，重心坐标插值绘制耗时:%lf 毫秒\n", useTime * 1000);
+	sprintf(msg, "Release版本，双线性插值绘制耗时:%lf 毫秒\n", useTime * 1000);
 	OutputDebugStringA(msg);//往调试器输出两帧绘制时间间隔
 	getchar();
 }
