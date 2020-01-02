@@ -16,6 +16,11 @@ void Graphics::setPixel(int x, int y, COLORREF c)
 	g_pBuf[y * WIDTH + x] = BGR(c);
 }
 
+void Graphics::clear()
+{
+	cleardevice();
+}
+
 Graphics::~Graphics()
 {
 	closegraph();// ¹Ø±Õ»æÍ¼´°¿Ú

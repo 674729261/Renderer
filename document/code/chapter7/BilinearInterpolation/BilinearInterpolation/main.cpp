@@ -30,7 +30,15 @@ struct Edge//边结构
 	double X;
 	double DX;
 	double YMAX;
-	Edge(double x, double dx, double ymax) :X(x), DX(dx), YMAX(ymax)
+
+	double ReciprocateOfOmega;//1 / ω在边上起始值
+	double UDivOmega;
+	double VDivOmega;
+	double DReciprocateOfOmega; //记录当前边上属性1/ω在不同扫描线上面的增量
+	double DUDivOmega;
+	double DVDivOmega;
+	Edge(double x, double dx, double ymax, double reciprocateOfOmega, double uDivOmega, double vDivOmega, double dReciprocateOfOmega, double dUDivOmega, double dVDivOmega)
+		:X(x), DX(dx), YMAX(ymax), ReciprocateOfOmega(reciprocateOfOmega), UDivOmega(uDivOmega), VDivOmega(vDivOmega), DReciprocateOfOmega(dReciprocateOfOmega), DUDivOmega(dUDivOmega), DVDivOmega(dVDivOmega)
 	{}
 };
 //边排序代码，给std::list排序时调用
@@ -51,8 +59,10 @@ void FillTriangle(Graphics& gp, Point4* Triangle, double* attribute)
 	Point4 ps[3];
 	for (int i = 0; i < 3; i++)
 	{
-		ps[i].X = (Triangle[i].X + 1) / 2 * (gp.WIDTH - 1);//实际行号取值范围为[0,Height-1]
-		ps[i].Y = (Triangle[i].Y + 1) / 2 * (gp.HEIGHT - 1);//实际列号取值范围为[0,Height-1]
+		//ps[i].X = (Triangle[i].X + 1) / 2 * (gp.WIDTH - 1);//实际行号取值范围为[0,Height-1]
+		//ps[i].Y = (Triangle[i].Y + 1) / 2 * (gp.HEIGHT - 1);//实际列号取值范围为[0,Height-1]
+		ps[i].X = (Triangle[i].X + 1) / 2 * (gp.WIDTH);//实际行号取值范围为[0,Height-1]
+		ps[i].Y = (Triangle[i].Y + 1) / 2 * (gp.HEIGHT);//实际列号取值范围为[0,Height-1]
 		ps[i].W = Triangle[i].W;
 	}
 	Vector3 ab(ps[1].X - ps[0].X, ps[1].Y - ps[0].Y, 0.0);//ps[0]->ps[1]
@@ -73,19 +83,38 @@ void FillTriangle(Graphics& gp, Point4* Triangle, double* attribute)
 	for (int i = 0; i < 3; i++)//对每条边都会被判断两次，选择Y值小的点作为起点，Y值大的点作为终点，平行于扫描线的边被放弃,并且因为放弃了与扫描线平行的边，所以也不会出现dx等于无穷大的情况
 	{
 		double x, dx, ymax;
+		double ReciprocateOfOmega, UDivOmega, VDivOmega, DReciprocateOfOmega, DUDivOmega, DVDivOmega;// 1/ω、u/ω、v/ω在边上的起始值和该边在不同扫描线上面的增量
 		if (ps[i].Y > ps[(i + 1) % 3].Y)//以pi+1作为起点,pi作为终点
 		{
 			x = ps[(i + 1) % 3].X;
 			dx = (ps[(i + 1) % 3].X - ps[i].X) / (ps[(i + 1) % 3].Y - ps[i].Y);
 			ymax = ps[i].Y;
-			NET[(int)ps[(i + 1) % 3].Y].push_back(Edge(x, dx, ymax));
+
+			ReciprocateOfOmega = 1 / ps[(i + 1) % 3].W;
+			UDivOmega = attribute[((i + 1) % 3) * 2] / ps[(i + 1) % 3].W;
+			VDivOmega = attribute[((i + 1) % 3) * 2 + 1] / ps[(i + 1) % 3].W;
+
+			DReciprocateOfOmega = (1 / ps[(i + 1) % 3].W - 1 / ps[i].W) / (ps[(i + 1) % 3].Y - ps[i].Y);
+			DUDivOmega = (attribute[((i + 1) % 3) * 2] / ps[(i + 1) % 3].W - attribute[i * 2] / ps[i].W) / (ps[(i + 1) % 3].Y - ps[i].Y);
+			DVDivOmega = (attribute[((i + 1) % 3) * 2 + 1] / ps[(i + 1) % 3].W - attribute[i * 2 + 1] / ps[i].W) / (ps[(i + 1) % 3].Y - ps[i].Y);
+
+			NET[(int)ps[(i + 1) % 3].Y].push_back(Edge(x, dx, ymax, ReciprocateOfOmega, UDivOmega, VDivOmega, DReciprocateOfOmega, DUDivOmega, DVDivOmega));
 		}
 		else if (ps[i].Y < ps[(i + 1) % 3].Y)//以pi作为起点，pi+1作为终点
 		{
 			x = ps[i].X;
 			dx = (ps[(i + 1) % 3].X - ps[i].X) / (ps[(i + 1) % 3].Y - ps[i].Y);
 			ymax = ps[(i + 1) % 3].Y;
-			NET[(int)ps[i].Y].push_back(Edge(x, dx, ymax));
+
+			ReciprocateOfOmega = 1 / ps[i].W;
+			UDivOmega = attribute[i * 2] / ps[i].W;
+			VDivOmega = attribute[i * 2 + 1] / ps[i].W;
+
+			DReciprocateOfOmega = (1 / ps[(i + 1) % 3].W - 1 / ps[i].W) / (ps[(i + 1) % 3].Y - ps[i].Y);
+			DUDivOmega = (attribute[((i + 1) % 3) * 2] / ps[(i + 1) % 3].W - attribute[i * 2] / ps[i].W) / (ps[(i + 1) % 3].Y - ps[i].Y);
+			DVDivOmega = (attribute[((i + 1) % 3) * 2 + 1] / ps[(i + 1) % 3].W - attribute[i * 2 + 1] / ps[i].W) / (ps[(i + 1) % 3].Y - ps[i].Y);
+
+			NET[(int)ps[i].Y].push_back(Edge(x, dx, ymax, ReciprocateOfOmega, UDivOmega, VDivOmega, DReciprocateOfOmega, DUDivOmega, DVDivOmega));
 		}
 		else//平行于扫描线的边
 		{
@@ -120,33 +149,62 @@ void FillTriangle(Graphics& gp, Point4* Triangle, double* attribute)
 				{
 					edgeEnd = it;
 					counterOfedge = 0;
-					for (int x = (int)edgeStar->X; x < edgeEnd->X; x++)//绘制这对交点组成的线段
+
+					/*
+					为了方便大家看代码(其实我自己都看懵了)，现在把下面缩写的含义解释一下
+					s:start 起始
+					e:end 结束
+					r:reciprocal 倒数
+					d:divide 除以
+					o:omega ω
+					u:纹理U
+					v:纹理V
+					*/
+					double sudo = edgeStar->UDivOmega;//取得当前扫描线上面X,1/ω、u/ω、v/ω初始值和结束值
+					double eudo = edgeEnd->UDivOmega;
+					double svdo = edgeStar->VDivOmega;
+					double evdo = edgeEnd->VDivOmega;
+					double sro = edgeStar->ReciprocateOfOmega;
+					double ero = edgeEnd->ReciprocateOfOmega;
+
+					double sx = edgeStar->X;
+					double ex = edgeEnd->X;
+
+					double dxro, dxudo, dxvdo;
+					dxro = (ero - sro) / (ex - sx);//计算属性1/ω、u/ω、v/ω在扫描线上面的增量
+					dxudo = (eudo - sudo) / (ex - sx);
+					dxvdo = (evdo - svdo) / (ex - sx);
+
+					int x = sx;//初始化当前像素的x,u,v属性值
+					double ro = sro;
+					double udo = sudo;
+					double vdo = svdo;
+
+					for (; x < ex; x++)//绘制这对交点组成的线段
 					{
-						double WeightA, WeightB, WeightC;
-						Vector3 bp(x - ps[1].X, y - ps[1].Y, 0.0);
-						Vector3 ap(x - ps[0].X, y - ps[0].Y, 0.0);
-						Vector3 cp(x - ps[2].X, y - ps[2].Y, 0.0);
-						WeightA = (bc.X * bp.Y - bc.Y * bp.X) / square;
-						WeightB = (ca.X * cp.Y - ca.Y * cp.X) / square;
-						WeightC = (ab.X * ap.Y - ab.Y * ap.X) / square;//得到屏幕空间中三个顶点的权值
-
-
-						double u, v;//纹理的uv
-						double Pomega = 1 / ((1 / ps[0].W) * WeightA + (1 / ps[1].W) * WeightB + (1 / ps[2].W) * WeightC);//求出当前顶点的ω分量
-
-						u = Pomega * (attribute[0] / ps[0].W * WeightA + attribute[2] / ps[1].W * WeightB + attribute[4] / ps[2].W * WeightC);//使用线性插值计算当前绘制像素的u值
-						v = Pomega * (attribute[1] / ps[0].W * WeightA + attribute[3] / ps[1].W * WeightB + attribute[5] / ps[2].W * WeightC);//使用线性插值计算当前绘制像素的v值
-						
-
-
 						double px, py;//图片的x,y
+						double omega = 1 / ro;
+						double u = omega * udo;
+						double v = omega * vdo;
 						UV2XY(u, v, px, py, 2, 2);//将uv转换成xy坐标
 						COLORREF c = getPixel((int)px, (int)py);
 						gp.setPixel(x, y, c);//绘制像素
+						ro += dxro;
+						udo += dxudo;
+						vdo += dxvdo;
 					}
 					//将这对交点的x值增加dx
 					edgeStar->X += edgeStar->DX;
 					edgeEnd->X += edgeEnd->DX;
+
+					edgeStar->ReciprocateOfOmega += edgeStar->DReciprocateOfOmega;
+					edgeEnd->ReciprocateOfOmega += edgeEnd->DReciprocateOfOmega;
+
+					edgeStar->UDivOmega += edgeStar->DUDivOmega;
+					edgeEnd->UDivOmega += edgeEnd->DUDivOmega;
+
+					edgeStar->VDivOmega += edgeStar->DVDivOmega;
+					edgeEnd->VDivOmega += edgeEnd->DVDivOmega;
 				}
 				it++;
 			}
@@ -321,7 +379,7 @@ int main()
 	std::chrono::microseconds duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
 	double useTime = double(duration.count()) * std::chrono::microseconds::period::num / std::chrono::microseconds::period::den;//花费时间
 	char msg[256];//往调试器打印信息用的缓冲区
-	sprintf(msg, "release版本，重心坐标插值绘制耗时:%lf 毫秒\n", useTime * 1000);
+	sprintf(msg, "release版本，双线性插值绘制耗时:%lf 毫秒\n", useTime * 1000);
 	OutputDebugStringA(msg);//往调试器输出两帧绘制时间间隔
 	getchar();
 }

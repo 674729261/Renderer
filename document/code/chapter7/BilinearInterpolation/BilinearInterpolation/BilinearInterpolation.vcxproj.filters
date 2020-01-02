@@ -15,13 +15,19 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="Graphics.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
     <ClCompile Include="main.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
     <ClCompile Include="Point2.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
-    <ClCompile Include="Graphics.cpp">
+    <ClCompile Include="Point3.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="Point4.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
     <ClCompile Include="Vector3.cpp">
@@ -33,6 +39,12 @@
       <Filter>头文件</Filter>
     </ClInclude>
     <ClInclude Include="Point2.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="Point3.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="Point4.h">
       <Filter>头文件</Filter>
     </ClInclude>
     <ClInclude Include="Vector3.h">

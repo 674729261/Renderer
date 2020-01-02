@@ -12,6 +12,7 @@ public:
 	int WIDTH, HEIGHT;
 	Graphics(int w,int h);//创建画布,w,h分别为画布宽高
 	void setPixel(int x, int y, COLORREF c);//往画布指定像素设置一个颜色
+	void clear();
 	~Graphics();
 };
 #endif // !_GRAPHICS
