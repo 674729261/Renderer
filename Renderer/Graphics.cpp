@@ -544,7 +544,7 @@ void GraphicsLibrary::DrawTriangle(Point4* parray, double* varying)
 						double Pomega = 1 / ((1 / ps[0].value[3]) * WeightA + (1 / ps[1].value[3]) * WeightB + (1 / ps[2].value[3]) * WeightC);//求出当前顶点的ω分量
 
 						z = Pomega * (ps[0].value[2] / ps[0].value[3] * WeightA + ps[1].value[2] / ps[1].value[3] * WeightB + ps[2].value[2] / ps[2].value[3] * WeightC);//使用线性插值计算当前绘制像素的Z值
-						if (z > Z_Buffer[y * 640 + x])
+						if (z > Z_Buffer[y * ScreenWidth + x])
 						{
 							continue;//跳过当前像素的绘制
 						}
